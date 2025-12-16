@@ -14,16 +14,41 @@ if is_mode("debug") then
     add_cxflags("-g")
 elseif is_mode("release") then
     set_optimize("fastest")
-    add_cxflags("-march=native")
+    add_cxflags("-march=native", "-mtune=native", "-flto=auto")
     add_cxflags("-w")
+    add_ldflags("-flto=auto")
 end
 
-add_repositories("awakelion-xmake-repo https://github.com/AwakeLion-Robot-Lab/awakelion-xmake-repo.git")
-add_requires("eigen 5.0.0", "awakelion-logger 1.0.0", "backward-cpp v1.6", "manif 0.0.5")
+if has_config("test") then
+    add_requires("gtest 1.17.0", {configs = {main = true}})
+end
+add_requires("eigen 5.0.0", "backward-cpp v1.6", "manif 0.0.5")
 add_requireconfs("manif.eigen", {override = true})
 
-target("test")
-    set_kind("binary")
-    add_files("src/*.cpp")
+namespace("fosu-awakelion")
 
-    add_packages("awakelion-logger")
+    target("ESTstack")
+        set_kind("headeronly")
+        add_headerfiles("modules/eststack/core/*.cppm")
+        add_headerfiles("modules/eststack/model/motion/*.cppm")
+        add_headerfiles("modules/eststack/model/imu/*.cppm")
+        add_headerfiles("modules/eststack/problem/*.cppm")
+        add_headerfiles("modules/eststack/solution/*.cppm")
+        add_headerfiles("modules/eststack/impl/*.cppm")
+
+    if has_config("test") then
+        for _, file in ipairs(os.files("test/*.cpp")) do
+            local name = path.basename(file)
+            target("ESTstack-test-" .. name)
+                set_kind("binary")
+                set_default(false)
+                set_policy("build.c++.modules", true)
+                add_files(file)
+                add_packages("ESTstack")
+                add_packages("gtest")
+                set_rundir("$(projectdir)")
+                add_tests("ESTstack-test", {runargs = {"--gtest_color=yes"}})
+        end
+    end
+
+namespace_end() -- namespace fosu-awakelion
