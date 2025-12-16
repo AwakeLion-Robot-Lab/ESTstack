@@ -14,27 +14,37 @@ if is_mode("debug") then
     add_cxflags("-g")
 elseif is_mode("release") then
     set_optimize("fastest")
-    add_cxflags("-march=native", "-mtune=native", "-flto=auto")
-    add_cxflags("-w")
+    add_cxflags("-march=native", "-flto=auto", "-w")
     add_ldflags("-flto=auto")
 end
+
+-- option for build ceres solver with cuda
+option("with_cuda")
+    set_default(false)
+    set_showmenu(true)
+    set_description("enable CUDA for ceres solver.")
+option_end()
 
 if has_config("test") then
     add_requires("gtest 1.17.0", {configs = {main = true}})
 end
 add_requires("eigen 5.0.0", "backward-cpp v1.6", "manif 0.0.5")
-add_requireconfs("manif.eigen", {override = true})
+add_requires("openblas 0.3.30")  -- openblas for suitesparse inside ceres solver
+add_requires("ceres-solver 2.2.0", {configs = {cuda = has_config("with_cuda")}})
+add_requireconfs("manif.eigen", {override = true})  -- use eigen from xmake package
+add_requireconfs("ceres-solver.openblas", {override = true})   -- use openblas from xmake package
+add_requireconfs("ceres-solver.suitesparse.openblas", {override = true})  -- same as above
 
 namespace("fosu-awakelion")
-
     target("ESTstack")
-        set_kind("headeronly")
-        add_headerfiles("modules/eststack/core/*.cppm")
-        add_headerfiles("modules/eststack/model/motion/*.cppm")
-        add_headerfiles("modules/eststack/model/imu/*.cppm")
-        add_headerfiles("modules/eststack/problem/*.cppm")
-        add_headerfiles("modules/eststack/solution/*.cppm")
-        add_headerfiles("modules/eststack/impl/*.cppm")
+        set_kind("static")
+        set_policy("build.c++.modules", true)   -- enable C++20 modules
+        set_policy("build.c++.modules.std", false) -- not to find STL modules 
+        add_files("modules/eststack/**/*.cppm", {public = true})
+        add_includedirs("modules", {public = true})
+
+        -- dependencies
+        add_packages("eigen", "backward-cpp", "manif", "openblas", "ceres-solver")
 
     if has_config("test") then
         for _, file in ipairs(os.files("test/*.cpp")) do
@@ -42,13 +52,11 @@ namespace("fosu-awakelion")
             target("ESTstack-test-" .. name)
                 set_kind("binary")
                 set_default(false)
-                set_policy("build.c++.modules", true)
                 add_files(file)
-                add_packages("ESTstack")
+                add_deps("ESTstack")
                 add_packages("gtest")
                 set_rundir("$(projectdir)")
                 add_tests("ESTstack-test", {runargs = {"--gtest_color=yes"}})
         end
     end
-
 namespace_end() -- namespace fosu-awakelion

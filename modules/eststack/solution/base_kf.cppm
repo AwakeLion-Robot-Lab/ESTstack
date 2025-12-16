@@ -16,10 +16,11 @@
 export module BaseKF;
 
 // C++ standard library
-#include <concepts>;
+#include <concepts>
+#include <type_traits>
 
 // Eigen library
-#include <Eigen/Dense>;
+#include <Eigen/Dense>
 
 /***
  * @brief a common algorithm set for `Awakelion Robot Lab`
@@ -39,10 +40,11 @@ export namespace eststack
     };
 
     template <typename Model>
-    concept StateSpaceModel = requires(Model m) {
+    concept StateSpaceModel = requires(const Model &m) {
         { Model::StateDim } -> std::convertible_to<int>;
         { Model::MeasDim } -> std::convertible_to<int>;
 
+        typename Model::Scalar;
         typename Model::StateVec;
         typename Model::StateMat;
         typename Model::MeasVec;
@@ -67,8 +69,8 @@ export namespace eststack
         { kf.reset(x0, P0) };
         { kf.predict(model, u) };
         { kf.update(model, z) };
-        { kf.state() } -> EigenMatrix;
-        { kf.cov() } -> EigenMatrix;
+        { kf.state() } -> std::same_as<const typename KF::Model::StateVec &>;
+        { kf.cov() } -> std::same_as<const typename KF::Model::StateMat &>;
     };
 
     export template <StateSpaceModel M>
@@ -81,15 +83,17 @@ export namespace eststack
         using StateMat = typename M::StateMat;
         using MeasVec = typename M::MeasVec;
 
-        void reset(const StateVec &x0, const StateMat &P0);
+        virtual ~KalmanFilter() = default;
 
-        void predict(const M &m, const StateVec &u);
+        virtual void reset(const StateVec &x0, const StateMat &P0) = 0;
 
-        void update(const M &m, const MeasVec &z);
+        virtual void predict(const Model &m, const StateVec &u) = 0;
 
-    private:
-        StateVec x_{};
-        StateMat P_{StateMat::Identity()};
+        virtual void update(const Model &m, const MeasVec &z) = 0;
+
+        virtual const StateVec &state() const noexcept = 0;
+
+        virtual const StateMat &cov() const noexcept = 0;
     };
 
 } // namespace eststack
