@@ -28,7 +28,8 @@ option_end()
 if has_config("test") then
     add_requires("gtest 1.17.0", {configs = {main = true}})
 end
-add_requires("eigen 5.0.0", "backward-cpp v1.6", "manif 0.0.5")
+add_repositories("awakelion-xmake-repo https://github.com/AwakeLion-Robot-Lab/awakelion-xmake-repo.git")
+add_requires("eigen 5.0.0", "backward-cpp v1.6", "manif 0.0.5", "awakelion-logger 1.0.2")
 add_requires("openblas 0.3.30")  -- openblas for suitesparse inside ceres solver
 add_requires("ceres-solver 2.2.0", {configs = {cuda = has_config("with_cuda")}})
 add_requireconfs("manif.eigen", {override = true})  -- use eigen from xmake package
@@ -37,14 +38,12 @@ add_requireconfs("ceres-solver.suitesparse.openblas", {override = true})  -- sam
 
 namespace("fosu-awakelion")
     target("ESTstack")
-        set_kind("static")
-        set_policy("build.c++.modules", true)   -- enable C++20 modules
-        set_policy("build.c++.modules.std", false) -- not to find STL modules 
-        add_files("modules/eststack/**/*.cppm", {public = true})
-        add_includedirs("modules", {public = true})
+        set_kind("headeronly")
+        add_includedirs("include", {public = true})
+        add_headerfiles("include/eststack/**/*.hpp", {public = true})
 
         -- dependencies
-        add_packages("eigen", "backward-cpp", "manif", "openblas", "ceres-solver")
+        add_packages("eigen", "backward-cpp", "manif", "awakelion-logger", "openblas", "ceres-solver", {public = true})
 
     if has_config("test") then
         for _, file in ipairs(os.files("test/*.cpp")) do
