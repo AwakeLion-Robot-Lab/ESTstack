@@ -18,6 +18,7 @@
 // C++ standard library
 #include <concepts>
 #include <type_traits>
+#include <utility>
 
 // Eigen library
 #include <Eigen/Dense>
@@ -36,13 +37,14 @@ namespace eststack
         /***
          * @brief base class for Kalman filter
          * @tparam Derived derived kalman filter class
-         * @details CRTP design for compile-time polymorphism, more efficient and flexibie
+         * @tparam StateT state type used by the filter
+         * @details CRTP design for compile-time polymorphism, which is more efficient and flexibie
          */
-        template <typename Derived>
+        template <typename Derived, typename StateT>
         class BaseKF
         {
         public:
-            using State = typename Derived::State;
+            using State = StateT;
             using Scalar = typename State::Scalar;
             using Covariance = Eigen::Matrix<Scalar, State::DoF, State::DoF>;
 
@@ -96,8 +98,9 @@ namespace eststack
 
             /***
              * @brief update step
+             * @tparam MeasurementModel measurement model
              * @tparam Measurement measurement vector
-             * @tparam Args additional arguments, e.g. noise covariance, etc.
+             * @tparam Args additional arguments, e.g. bias or white noise, etc.
              * @param H measurement matrix
              * @param z measurement vector
              * @param args additional arguments
@@ -119,10 +122,10 @@ namespace eststack
             /***
              * @brief state vector
              */
-            State x_ = State::Identity();
+            State x_;
 
             /***
-             * @brief covariance matrix
+             * @brief covariance matrix of state
              */
             Covariance P_ = Covariance::Identity();
         };

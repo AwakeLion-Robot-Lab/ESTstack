@@ -62,6 +62,10 @@ namespace eststack
             typename T::Covariance;
             /* for dim(T_I(M)) != dim(control input), like SE_2(3) */
             typename T::ControlJacobian;
+
+            { model.compute(std::declval<typename T::State>(), std::declval<typename T::ControlInput>()) } -> std::same_as<typename T::State>;
+            { model.computeStateJacobian(std::declval<typename T::State>(), std::declval<typename T::ControlInput>()) } -> std::same_as<typename T::Covariance>;
+            { model.computeNoiseJacobian(std::declval<typename T::State>(), std::declval<typename T::ControlInput>()) } -> std::same_as<typename T::ControlJacobian>;
         };
 
         /***
@@ -73,6 +77,100 @@ namespace eststack
             requires LieGroupState<typename T::State>;
             typename T::Measurement;
             typename T::Covariance;
+            typename T::MeasurementJacobian;
+
+            { model.compute(std::declval<typename T::State>()) } -> std::same_as<typename T::Measurement>;
+            { model.computeMeasJacobian(std::declval<typename T::State>()) } -> std::same_as<typename T::MeasurementJacobian>;
+        };
+
+        /***
+         * @brief base class for transition model
+         * @tparam Derived derived transition model class
+         * @details CRTP design for compile-time polymorphism
+         */
+        template <typename Derived>
+        class BaseTransitionModel
+        {
+        public:
+            using State = typename Derived::State;
+            using Scalar = typename State::Scalar;
+            using ControlInput = typename Derived::ControlInput;
+            using Covariance = typename Derived::Covariance;
+            using ControlJacobian = typename Derived::ControlJacobian;
+
+            /***
+             * @brief compute the transition model
+             * @param state current state
+             * @param u control input
+             * @return next state
+             */
+            State compute(const State &state, const ControlInput &u) const
+            {
+                return static_cast<const Derived *>(this)->computeImpl(state, u);
+            }
+
+            /***
+             * @brief compute the state jacobian (F_x)
+             * @param state current state
+             * @param u control input
+             * @return state jacobian matrix
+             */
+            Covariance computeStateJacobian(const State &state, const ControlInput &u) const
+            {
+                return static_cast<const Derived *>(this)->computeStateJacobianImpl(state, u);
+            }
+
+            /***
+             * @brief compute the noise jacobian (F_w)
+             * @param state current state
+             * @param u control input
+             * @return noise jacobian matrix
+             */
+            ControlJacobian computeNoiseJacobian(const State &state, const ControlInput &u) const
+            {
+                return static_cast<const Derived *>(this)->computeNoiseJacobianImpl(state, u);
+            }
+
+        protected:
+            BaseTransitionModel() = default;
+        };
+
+        /***
+         * @brief base class for measurement model
+         * @tparam Derived derived measurement model class
+         * @details CRTP design for compile-time polymorphism
+         */
+        template <typename Derived>
+        class BaseMeasurementModel
+        {
+        public:
+            using State = typename Derived::State;
+            using Measurement = typename Derived::Measurement;
+            using Covariance = typename Derived::Covariance;
+            using MeasurementJacobian = typename Derived::MeasurementJacobian;
+
+            /***
+             * @brief compute the measurement model
+             * @param state current state
+             * @return expected measurement
+             */
+            Measurement compute(const State &state) const
+            {
+                return static_cast<const Derived *>(this)->computeImpl(state);
+            }
+
+            /***
+             * @brief compute the measurement jacobian (H)
+             * @param state current state
+             * @return measurement jacobian matrix
+             */
+            MeasurementJacobian computeMeasJacobian(const State &state) const
+            {
+                return static_cast<const Derived *>(this)->computeMeasJacobianImpl(state);
+            }
+
+        protected:
+            BaseMeasurementModel() = default;
         };
 
     }

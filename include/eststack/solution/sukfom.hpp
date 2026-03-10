@@ -36,8 +36,14 @@ namespace eststack
         /***
          * @brief scaled unscented Kalman filter on (parallelizable) manifold
          */
-        class SUKFOM : public BaseKF<SUKFOM>
+        template <eststack::model::LieGroupState StateT>
+        class SUKFOM : public BaseKF<SUKFOM<StateT>, StateT>
         {
+        public:
+            using Base = BaseKF<SUKFOM<StateT>, StateT>;
+            using State = typename Base::State;
+            using Scalar = typename Base::Scalar;
+            using Covariance = typename Base::Covariance;
         };
     }
 }

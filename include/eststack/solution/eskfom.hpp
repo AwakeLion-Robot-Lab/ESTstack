@@ -35,9 +35,41 @@ namespace eststack
     {
         /***
          * @brief error state Kalman filter on manifold
+         * @tparam StateT state type
          */
-        class ESKFOM : public BaseKF<ESKFOM>
+        template <eststack::model::LieGroupState StateT>
+        class ESKFOM : public BaseKF<ESKFOM<StateT>, StateT>
         {
+        public:
+            EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+            using Base = BaseKF<ESKFOM<StateT>, StateT>;
+            using State = typename Base::State;
+            using Scalar = typename Base::Scalar;
+            using Covariance = typename Base::Covariance;
+
+            /***
+             * @brief default constructor
+             */
+            ESKFOM() = default;
+
+            /***
+             * @brief EKSFOM prediction step implementation
+             * @details see `base_kf.hpp` for more details on the arguments
+             */
+            template <eststack::model::TransitionModel TransitionModel, typename... Args>
+            const State &predictImpl(const TransitionModel &F, const typename TransitionModel::ControlInput &u, Args &&...args)
+            {
+            }
+
+            /***
+             * @brief EKSFOM update step implementation
+             * @details see `base_kf.hpp` for more details on the arguments
+             */
+            template <eststack::model::MeasurementModel MeasurementModel, typename... Args>
+            const State &updateImpl(const MeasurementModel &H, const typename MeasurementModel::Measurement &z, Args &&...args)
+            {
+            }
         };
     }
 }

@@ -4,6 +4,15 @@
 
 遵循**自底向上**的实现顺序：Core → Problem → Solution
 
+当前执行重点（按当前进度）：**先完善 `solution/eskfom.hpp`，再实现 `solution/btc_tcf.hpp`**。
+
+本迭代采用里程碑优先：为尽快形成可运行滤波闭环，暂时按 **Solution-first（ESKFOM → BTC_TCF）** 推进，再回补 Core 通用算法。
+
+当前代码进度快照（基于最近提交与文件内容）：
+- 已有可用框架：`model/base_model.hpp`（concept 约束）、`solution/base_kf.hpp`（CRTP 基类）
+- 进行中：`solution/eskfom.hpp`（类骨架已建，尚无 predict/update 实现）
+- 未开始/空文件：`problem/base_problem.hpp`、`core/kabsch.hpp`、`core/bar_itzhack.hpp`、`solution/btc_tcf.hpp`
+
 实现原则：
 1. 每个模块独立测试后再进行上层开发
 2. 优先实现最常用、最基础的功能
@@ -147,7 +156,7 @@ namespace eststack::problem {
 }
 ```
 
-**用途**: ESEKF、SUKFM 的问题定义
+**用途**: ESKFOM、SUKFM 的问题定义
 
 ---
 
@@ -248,8 +257,8 @@ namespace eststack::solution {
 
 ---
 
-### 3.2 `solution/esekf.hpp` - Error-State Extended Kalman Filter
-**目标**: 基于流形的ESEKF实现
+### 3.2 `solution/eskfom.hpp` - Error-State Kalman Filter on Manifold
+**目标**: 基于流形的ESKFOM实现
 
 **核心特性**:
 - 使用 Manif 库处理 SE(3) 流形
@@ -260,7 +269,7 @@ namespace eststack::solution {
 ```cpp
 namespace eststack::solution {
   template<typename ProblemType>
-  class ESEKF : public BaseKF<ProblemType> {
+  class ESKFOM : public BaseKF<ProblemType> {
   private:
     State nominal_state_;       // 名义状态
     Eigen::VectorXd error_state_;  // 误差状态
@@ -294,7 +303,7 @@ namespace eststack::solution {
 - 在非欧几里得流形（SE(3), SO(3)等）上进行状态估计
 - 使用 Scaled Unscented Transformation 生成 sigma 点
 - 利用 Manif 库处理流形上的加法/减法运算
-- 相比ESEKF，不需要线性化，对非线性系统更精确
+- 相比ESKFOM，不需要线性化，对非线性系统更精确
 
 **实现要点**:
 ```cpp
@@ -403,7 +412,7 @@ namespace eststack::solution {
 
 ---
 
-### 4.4 `solution/tcf_btc.hpp` - TCF with BTC Descriptor
+### 4.4 `solution/btc_tcf.hpp` - BTC-augmented TCF
 **目标**: 使用BTC描述子的紧耦合框架
 
 **实现内容**:
@@ -416,7 +425,7 @@ namespace eststack::solution {
     double match_score(const Eigen::VectorXf& desc1, const Eigen::VectorXf& desc2);
   };
 
-  class TCF_BTC {
+  class BTC_TCF {
   public:
     // Tight Coupling Framework
     // 联合优化位姿和描述子匹配
@@ -448,10 +457,11 @@ tests/
 │   ├── test_bar_itzhack.cpp
 │   └── test_quasar.cpp
 ├── solution/
-│   ├── test_esekf.cpp
+│   ├── test_eskfom.cpp
 │   ├── test_sukfm.cpp
 │   ├── test_imm.cpp
-│   └── test_icp.cpp
+│   ├── test_icp.cpp
+│   └── test_btc_tcf.cpp
 └── integration/
     └── test_vio_pipeline.cpp
 ```
@@ -459,9 +469,10 @@ tests/
 ### 5.2 示例程序
 ```
 examples/
-├── imu_esekf_demo.cpp        # IMU滤波演示
+├── imu_eskfom_demo.cpp       # IMU滤波演示
 ├── icp_registration_demo.cpp  # 点云配准
 ├── imm_tracking_demo.cpp      # 多模型跟踪
+├── btc_tcf_demo.cpp           # BTC-TCF 配准演示
 └── vio_pipeline.cpp           # 完整VIO管道
 ```
 
@@ -469,22 +480,22 @@ examples/
 
 ## 实现优先级排序
 
-### 高优先级 (立即开始)
-1. ✅ `core/kabsch.hpp` - 最基础的工具
-2. ✅ `core/bar_itzhack.hpp` - 姿态表示基础
-3. ✅ `problem/base_problem.hpp` - 接口定义
-4. ✅ `solution/base_kf.hpp` - 滤波器基类
+### P0（当前迭代：先打通 ESKFOM）
+1. ✅ `model/base_model.hpp` - 概念约束已落地
+2. ✅ `solution/base_kf.hpp` - CRTP 基类已落地
+3. `problem/base_problem.hpp` - 先补最小问题接口（给 ESKFOM 对齐输入输出）
+4. `solution/eskfom.hpp` - 完善为可编译可调用的最小实现（predict/update/协方差传播）
+5. `test/test_eskfom_minimal.cpp` - 增加最小闭环测试（编译 + 一次 predict/update）
 
-### 中优先级 (第二阶段)
-5. `problem/imu_filtering.hpp`
-6. `solution/esekf.hpp` - 最常用的滤波器
-7. `solution/icp.hpp` - 经典算法
+### P1（ESKFOM 后：BTC_TCF）
+6. `solution/btc_tcf.hpp` - 建立 BTC 描述子 + TCF 接口骨架并接入优化入口
+7. `test/test_btc_tcf.cpp` - 接口与基础数据流测试
 
-### 低优先级 (后期完善)
-8. `core/quasar.hpp` - 特定应用
-9. `solution/sukfm.hpp` - 高级滤波器
-10. `solution/imm.hpp` - 特定场景
-11. `solution/tcf_btc.hpp` - 研究性算法
+### P2（回补 Core 与扩展算法）
+8. `core/kabsch.hpp` - SVD 配准基础工具
+9. `core/bar_itzhack.hpp` - 稳健 DCM→Quaternion
+10. `solution/icp.hpp` - 依赖 kabsch 的经典配准
+11. `core/quasar.hpp` / `solution/sukfm.hpp` / `solution/imm.hpp` - 后续增强
 
 ---
 
@@ -514,7 +525,8 @@ target_link_libraries(eststack_core INTERFACE
 # 如果有实现文件
 add_library(eststack_impl
   src/core/kabsch.cpp
-  src/solution/esekf.cpp
+  src/solution/eskfom.cpp
+  src/solution/btc_tcf.cpp
   # ...
 )
 
