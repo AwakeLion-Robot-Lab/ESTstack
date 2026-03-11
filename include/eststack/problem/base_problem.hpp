@@ -15,4 +15,76 @@
 #ifndef PROBLEM__BASE_PROBLEM_HPP
 #define PROBLEM__BASE_PROBLEM_HPP
 
+// C++ standard library
+#include <concepts>
+#include <type_traits>
+#include <utility>
+#include <memory>
+
+/***
+ * @brief An algorithm set focus on estimation and filtering
+ * @author jinhua "siyiovo" deng
+ */
+namespace eststack
+{
+    /***
+     * @brief problem definitions that orchestrate filters, models and noise
+     */
+    namespace problem
+    {
+        /***
+         * @brief filter-based problem concept
+         * @details constrains any type that acts as a filtering problem:
+         *   owns a filter, exposes State / Covariance, and can be initialized
+         */
+        template <typename T>
+        concept EstProblem = requires(T prob) {
+            { prob.isInitialized() } -> std::convertible_to<bool>;
+            { prob.setSolution(std::declval<typename T::Solution>()) } -> std::same_as<void>;
+        };
+
+        /***
+         * @brief base class for estimation problems
+         * @tparam Derived problem class
+         * @tparam SolutionT solution type
+         */
+        template <typename Derived, typename SolutionT>
+        class BaseProblem
+        {
+        public:
+            /***
+             * @brief check if the problem has been initialized
+             */
+            bool isInitialized() const noexcept
+            {
+                return initialized_;
+            }
+
+            void setSolution(SolutionT &&sol)
+            {
+                solution_ = std::make_unique<SolutionT>(std::forward<SolutionT>(sol));
+                static_cast<Derived *>(this)->setSolutionImpl(solution_.get());
+                initialized_ = true;
+            }
+
+        protected:
+            /***
+             * @brief default constructor
+             */
+            BaseProblem() = default;
+
+            /***
+             * @brief initialization flag
+             */
+            bool initialized_ = false;
+
+            /***
+             * @brief the solution of the problem
+             */
+            std::unique_ptr<SolutionT> solution_;
+        };
+
+    } // namespace problem
+} // namespace eststack
+
 #endif //! PROBLEM__BASE_PROBLEM_HPP

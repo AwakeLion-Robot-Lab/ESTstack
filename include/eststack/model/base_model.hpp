@@ -57,15 +57,14 @@ namespace eststack
         template <typename T>
         concept TransitionModel = requires(T model) {
             typename T::State;
-            requires LieGroupState<typename T::State>;
             typename T::ControlInput;
             typename T::Covariance;
             /* for dim(T_I(M)) != dim(control input), like SE_2(3) */
-            typename T::ControlJacobian;
+            typename T::NoiseJacobian;
 
             { model.compute(std::declval<typename T::State>(), std::declval<typename T::ControlInput>()) } -> std::same_as<typename T::State>;
             { model.computeStateJacobian(std::declval<typename T::State>(), std::declval<typename T::ControlInput>()) } -> std::same_as<typename T::Covariance>;
-            { model.computeNoiseJacobian(std::declval<typename T::State>(), std::declval<typename T::ControlInput>()) } -> std::same_as<typename T::ControlJacobian>;
+            { model.computeNoiseJacobian(std::declval<typename T::State>(), std::declval<typename T::ControlInput>()) } -> std::same_as<typename T::NoiseJacobian>;
         };
 
         /***
@@ -74,7 +73,6 @@ namespace eststack
         template <typename T>
         concept MeasurementModel = requires(T model) {
             typename T::State;
-            requires LieGroupState<typename T::State>;
             typename T::Measurement;
             typename T::Covariance;
             typename T::MeasurementJacobian;
@@ -96,7 +94,7 @@ namespace eststack
             using Scalar = typename State::Scalar;
             using ControlInput = typename Derived::ControlInput;
             using Covariance = typename Derived::Covariance;
-            using ControlJacobian = typename Derived::ControlJacobian;
+            using NoiseJacobian = typename Derived::NoiseJacobian;
 
             /***
              * @brief compute the transition model
@@ -126,7 +124,7 @@ namespace eststack
              * @param u control input
              * @return noise jacobian matrix
              */
-            ControlJacobian computeNoiseJacobian(const State &state, const ControlInput &u) const
+            NoiseJacobian computeNoiseJacobian(const State &state, const ControlInput &u) const
             {
                 return static_cast<const Derived *>(this)->computeNoiseJacobianImpl(state, u);
             }
