@@ -15,6 +15,9 @@
 #ifndef MODEL__BASE_MODEL_HPP
 #define MODEL__BASE_MODEL_HPP
 
+// Eigen library
+#include <Eigen/Dense>
+
 // C++ standard library
 #include <concepts>
 #include <type_traits>
@@ -58,12 +61,13 @@ namespace eststack
         concept TransitionModel = requires(T model) {
             typename T::State;
             typename T::ControlInput;
-            typename T::Covariance;
-            /* for dim(T_I(M)) != dim(control input), like SE_2(3) */
+            typename T::StateJacobian;
+            /* for dim(T_I(M)) != dim(control input), like SE_2(3) and mostly Bundle */
             typename T::NoiseJacobian;
+            typename T::ProcessNoise;
 
             { model.compute(std::declval<typename T::State>(), std::declval<typename T::ControlInput>()) } -> std::same_as<typename T::State>;
-            { model.computeStateJacobian(std::declval<typename T::State>(), std::declval<typename T::ControlInput>()) } -> std::same_as<typename T::Covariance>;
+            { model.computeStateJacobian(std::declval<typename T::State>(), std::declval<typename T::ControlInput>()) } -> std::same_as<typename T::StateJacobian>;
             { model.computeNoiseJacobian(std::declval<typename T::State>(), std::declval<typename T::ControlInput>()) } -> std::same_as<typename T::NoiseJacobian>;
         };
 
@@ -74,11 +78,14 @@ namespace eststack
         concept MeasurementModel = requires(T model) {
             typename T::State;
             typename T::Measurement;
-            typename T::Covariance;
-            typename T::MeasurementJacobian;
+            typename T::MeasJacobian;
+            /* for dim(T_I(M)) != dim(control input), like SE_2(3) and mostly Bundle */
+            typename T::NoiseJacobian;
+            typename T::MeasurementNoise;
 
             { model.compute(std::declval<typename T::State>()) } -> std::same_as<typename T::Measurement>;
-            { model.computeMeasJacobian(std::declval<typename T::State>()) } -> std::same_as<typename T::MeasurementJacobian>;
+            { model.computeMeasJacobian(std::declval<typename T::State>()) } -> std::same_as<typename T::MeasJacobian>;
+            { model.computeNoiseJacobian(std::declval<typename T::State>()) } -> std::same_as<typename T::NoiseJacobian>;
         };
 
         /***
@@ -91,10 +98,12 @@ namespace eststack
         {
         public:
             using State = typename Derived::State;
-            using Scalar = typename State::Scalar;
             using ControlInput = typename Derived::ControlInput;
-            using Covariance = typename Derived::Covariance;
+            using StateJacobian = typename Derived::StateJacobian;
             using NoiseJacobian = typename Derived::NoiseJacobian;
+            using ProcessNoise = Eigen::Matrix<typename State::Scalar,
+                                               NoiseJacobian::ColsAtCompileTime,
+                                               NoiseJacobian::ColsAtCompileTime>;
 
             /***
              * @brief compute the transition model
@@ -113,13 +122,13 @@ namespace eststack
              * @param u control input
              * @return state jacobian matrix
              */
-            Covariance computeStateJacobian(const State &state, const ControlInput &u) const
+            StateJacobian computeStateJacobian(const State &state, const ControlInput &u) const
             {
                 return static_cast<const Derived *>(this)->computeStateJacobianImpl(state, u);
             }
 
             /***
-             * @brief compute the noise jacobian (F_w)
+             * @brief compute the process noise jacobian (F_w)
              * @param state current state
              * @param u control input
              * @return noise jacobian matrix
@@ -130,6 +139,9 @@ namespace eststack
             }
 
         protected:
+            /***
+             * @brief default constructor
+             */
             BaseTransitionModel() = default;
         };
 
@@ -144,8 +156,11 @@ namespace eststack
         public:
             using State = typename Derived::State;
             using Measurement = typename Derived::Measurement;
-            using Covariance = typename Derived::Covariance;
-            using MeasurementJacobian = typename Derived::MeasurementJacobian;
+            using MeasJacobian = typename Derived::MeasJacobian;
+            using NoiseJacobian = typename Derived::NoiseJacobian;
+            using MeasNoise = Eigen::Matrix<typename State::Scalar,
+                                            NoiseJacobian::ColsAtCompileTime,
+                                            NoiseJacobian::ColsAtCompileTime>;
 
             /***
              * @brief compute the measurement model
@@ -162,12 +177,25 @@ namespace eststack
              * @param state current state
              * @return measurement jacobian matrix
              */
-            MeasurementJacobian computeMeasJacobian(const State &state) const
+            MeasJacobian computeMeasJacobian(const State &state) const
             {
                 return static_cast<const Derived *>(this)->computeMeasJacobianImpl(state);
             }
 
+            /***
+             * @brief compute the measurement noise jacobian (H_w)
+             * @param state current state
+             * @return measurement noise jacobian matrix
+             */
+            NoiseJacobian computeNoiseJacobian(const State &state) const
+            {
+                return static_cast<const Derived *>(this)->computeNoiseJacobianImpl(state);
+            }
+
         protected:
+            /***
+             * @brief default constructor
+             */
             BaseMeasurementModel() = default;
         };
 

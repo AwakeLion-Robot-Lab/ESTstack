@@ -4,6 +4,45 @@ Main references used in ESTstack. See per-algorithm explanation pages for detail
 
 ---
 
+## Kalman Filter
+
+```bibtex
+@misc{wang2023bayesian,
+  title        = {贝叶斯滤波重制版},
+  author       = {忠厚老实的老王},
+  howpublished = {Bilibili video series},
+  year         = {2023},
+  url          = {https://www.bilibili.com/video/BV1Fj41157Ey/},
+  note         = {Bayesian filtering, Kalman filter, Markov processes,
+                  nonlinear KF (EKF/UKF), particle filter, and resampling}
+}
+
+@misc{zhang2024sdm366,
+  title        = {{SDM366} -- Optimal Control and Estimation},
+  author       = {Zhang, Wei},
+  institution  = {Southern University of Science and Technology (SUSTech)},
+  howpublished = {Course, Spring 2024},
+  year         = {2024},
+  url          = {https://github.com/clearlab-sustech/SDM366-Sp24},
+  note         = {State-space modeling, least-square estimation, system identification,
+                  LQR, observer design, and Kalman filter}
+}
+
+% Graduate-level reference; requires VERY SOLID linear algebra, probability (including stochastic
+% process) and Lie group background. Highly recommended once fundamentals are REALLY in place.
+@book{barfoot2024state,
+  title     = {State Estimation for Robotics},
+  author    = {Barfoot, Timothy D.},
+  edition   = {2},
+  publisher = {Cambridge University Press},
+  year      = {2024},
+  isbn      = {978-7-5693-0624-8},
+  url       = {http://asrl.utias.utoronto.ca/~tdb/bib/barfoot_ser24.pdf},
+  note      = {Bayesian estimation, Kalman filter, EKF, UKF, batch optimization,
+               Lie groups for 3D estimation, Gaussian processes on trajectories}
+}
+```
+
 ## ESKFOM
 
 ```bibtex
@@ -69,7 +108,7 @@ Main references used in ESTstack. See per-algorithm explanation pages for detail
   title        = {{SSY345} -- Sensor Fusion and Nonlinear Filtering},
   author       = {Hammarstrand, Lars},
   institution  = {Chalmers University of Technology},
-  howpublished = {YouTube lecture series},
+  howpublished = {edX online courses},
   note         = {Nonlinear motion models (CV, CA, CT, CTRV),
                   EKF, UKF, particle filter, and IMM}
 }
@@ -119,7 +158,7 @@ Main references used in ESTstack. See per-algorithm explanation pages for detail
 
 ---
 
-## Manif
+## Code Refinement
 
 ```bibtex
 @article{deray2020manif,
@@ -142,5 +181,15 @@ Main references used in ESTstack. See per-algorithm explanation pages for detail
   url     = {https://github.com/artivis/kalmanif},
   note    = {EKF, IEKF, UKFM, RTS smoother on manifolds;
              SE_2(3) IMU strap-down ESKF reference (demo\_se\_2\_3.cpp)}
+}
+
+@book{gao2024slam,
+  title     = {自动驾驶与机器人中的{SLAM}技术},
+  author    = {高翔},
+  publisher = {电子工业出版社},
+  year      = {2024},
+  isbn      = {978-7-121-45878-1},
+  note      = {Covers LiDAR/visual SLAM, Kalman filtering, graph optimization,
+               and point cloud registration with modern C++ implementation}
 }
 ```

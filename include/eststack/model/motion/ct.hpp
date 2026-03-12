@@ -17,6 +17,62 @@
 
 // Eigen library
 #include <Eigen/Dense>
-#include <Eigen/Sparse>
+
+// manif library
+#include <manif/Bundle.h>
+#include <manif/Rn.h>
+#include <manif/SO2.h>
+
+// ESTstack library
+#include "eststack/model/base_model.hpp"
+#include "eststack/types.hpp"
+
+/***
+ * @brief An algorithm set focus on estimation and filtering
+ * @author jinhua "siyiovo" deng
+ */
+namespace eststack
+{ /***
+   * @brief models for problems
+   */
+    namespace model
+    {
+        /***
+         * @brief coordinated turn motion model
+         */
+        class CT : public BaseTransitionModel<CT>
+        {
+        public:
+            using State = manif::Bundle<manif::SO2d, manif::R4>;
+            using ControlInput = Eigen::Vector2d;
+            using StateJacobian = eststack::Covariance<State>;
+            using NoiseJacobian = eststack::Covariance<State>;
+
+            /***
+             * @brief compute the transition model
+             * @param state current state
+             * @param u control input
+             * @return next state
+             */
+            State computeImpl(const State &state, const ControlInput &u) const;
+
+            /***
+             * @brief compute the state jacobian (F_x)
+             * @param state current state
+             * @param u control input
+             * @return state jacobian matrix
+             */
+            StateJacobian computeStateJacobianImpl(const State &state, const ControlInput &u) const;
+
+            /***
+             * @brief compute the noise jacobian (F_w)
+             * @param state current state
+             * @param u control input
+             * @return noise jacobian matrix
+             */
+            NoiseJacobian computeNoiseJacobianImpl(const State &state, const ControlInput &u) const;
+        };
+    }
+}
 
 #endif //! MODEL__CT_HPP

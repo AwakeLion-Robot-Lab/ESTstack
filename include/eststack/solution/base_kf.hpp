@@ -23,6 +23,9 @@
 // Eigen library
 #include <Eigen/Dense>
 
+// ESTstack library
+#include "eststack/types.hpp"
+
 /***
  * @brief An algorithm set focus on estimation and filtering
  * @author jinhua "siyiovo" deng
@@ -45,8 +48,7 @@ namespace eststack
         {
         public:
             using State = StateT;
-            using Scalar = typename State::Scalar;
-            using Covariance = Eigen::Matrix<Scalar, State::DoF, State::DoF>;
+            using StateCovariance = eststack::Covariance<State>;
 
             /***
              * @brief set state vector
@@ -67,7 +69,7 @@ namespace eststack
             /***
              * @brief set state covariance matrix
              */
-            void setCovariance(const Covariance &cov) noexcept
+            void setStateCovariance(const StateCovariance &cov) noexcept
             {
                 P_ = cov;
             }
@@ -75,7 +77,7 @@ namespace eststack
             /***
              * @brief get state covariance matrix
              */
-            const Covariance &getCovariance() const noexcept
+            const StateCovariance &getStateCovariance() const noexcept
             {
                 return P_;
             }
@@ -87,11 +89,10 @@ namespace eststack
              * @tparam Args additional arguments, e.g. bias or white noise, etc.
              * @param F transition matrix
              * @param u control input vector
-             * @param args additional perturbation
-             * @return priori state vector
+             * @param args additional arguments
              */
             template <typename TransitionModel, typename ControlInput, typename... Args>
-            const State &predict(const TransitionModel &F, const ControlInput &u, Args &&...args)
+            bool predict(const TransitionModel &F, const ControlInput &u, Args &&...args)
             {
                 return static_cast<Derived *>(this)->predictImpl(F, u, std::forward<Args>(args)...);
             }
@@ -104,10 +105,9 @@ namespace eststack
              * @param H measurement matrix
              * @param z measurement vector
              * @param args additional arguments
-             * @return posteriori state vector
              */
             template <typename MeasurementModel, typename Measurement, typename... Args>
-            const State &update(const MeasurementModel &H, const Measurement &z, Args &&...args)
+            bool update(const MeasurementModel &H, const Measurement &z, Args &&...args)
             {
                 return static_cast<Derived *>(this)->updateImpl(H, z, std::forward<Args>(args)...);
             }
@@ -125,9 +125,9 @@ namespace eststack
             State x_;
 
             /***
-             * @brief covariance matrix of state
+             * @brief state covariance matrix
              */
-            Covariance P_ = Covariance::Identity();
+            StateCovariance P_ = StateCovariance::Identity();
         };
 
     }
