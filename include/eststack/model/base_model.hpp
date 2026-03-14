@@ -117,7 +117,7 @@ namespace eststack
             }
 
             /***
-             * @brief compute the state jacobian (F_x)
+             * @brief compute the state jacobian df/dx about state transition w.r.t nominal state
              * @param state current state
              * @param u control input
              * @return state jacobian matrix
@@ -173,7 +173,7 @@ namespace eststack
             }
 
             /***
-             * @brief compute the measurement jacobian (H)
+             * @brief compute the measurement jacobian dh/dx about measurement w.r.t nominal state
              * @param state current state
              * @return measurement jacobian matrix
              */

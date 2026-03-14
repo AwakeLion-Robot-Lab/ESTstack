@@ -44,10 +44,11 @@ namespace eststack
         class CT : public BaseTransitionModel<CT>
         {
         public:
-            using State = manif::Bundle<manif::SO2d, manif::R4>;
+            using State = manif::Bundle<double, manif::SO2, manif::R4>;
             using ControlInput = Eigen::Vector2d;
-            using StateJacobian = eststack::Covariance<State>;
-            using NoiseJacobian = eststack::Covariance<State>;
+            using NoiseInput = Eigen::Vector4d;
+            using StateJacobian = eststack::Jacobian<State, State>;
+            using NoiseJacobian = eststack::Jacobian<State, NoiseInput>;
 
             /***
              * @brief compute the transition model

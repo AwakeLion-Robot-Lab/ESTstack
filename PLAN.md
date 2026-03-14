@@ -4,21 +4,38 @@
 
 遵循**自底向上**的实现顺序：Core → Problem → Solution
 
-当前执行重点（按当前进度）：**先完善 `solution/eskfom.hpp`，再实现 `solution/btc_tcf.hpp`**。
+当前执行重点（按当前进度）：**ESKFOM 已完成，当前实现 RM 运动模型 + ESKF Jacobian 转换 + 最小闭环测试**。
 
-本迭代采用里程碑优先：为尽快形成可运行滤波闭环，暂时按 **Solution-first（ESKFOM → BTC_TCF）** 推进，再回补 Core 通用算法。
+本迭代采用里程碑优先：为尽快形成可运行滤波闭环，暂时按 **Solution-first** 推进，再回补 Core 通用算法。
 
 当前代码进度快照（基于最近提交与文件内容）：
-- 已有可用框架：`model/base_model.hpp`（concept 约束）、`solution/base_kf.hpp`（CRTP 基类）
-- 进行中：`solution/eskfom.hpp`（类骨架已建，尚无 predict/update 实现）
-- 未开始/空文件：`problem/base_problem.hpp`、`core/kabsch.hpp`、`core/bar_itzhack.hpp`、`solution/btc_tcf.hpp`
+
+**已完成：**
+- `types.hpp` — concepts（LieGroupDoF / EigenRow / DimAtCompileTime）、Jacobian / Covariance 类型别名、Perturbation 枚举、getDimAtCompileTime consteval
+- `model/base_model.hpp` — LieGroupState / TransitionModel / MeasurementModel concepts + BaseTransitionModel / BaseMeasurementModel CRTP 基类
+- `solution/base_kf.hpp` — CRTP 基类，提供 predict / update 分发、state / covariance 存取
+- `solution/eskfom.hpp` — 完整 predict（Fx / Fw 协方差传播）+ update（SMW lemma 大维度优化、Joseph form 协方差、reset Jacobian via smallAdj）
+- `problem/base_problem.hpp` — EstProblem concept + BaseProblem CRTP 基类（isInitialized / setSolution 已实现）
+- `docs/explanation/eskfom.md` — Reset Jacobian 推导说明（wedge vs smallAdj）
+- `docs/explanation/references.md` — 15 条 BibTeX 参考文献
+
+**骨架（类声明完成，compute 方法仅声明无实现）：**
+- `model/motion/cv.hpp` — CV 模型，State = `manif::Rn<double, 4>`（待改为 RM 模型）
+- `model/motion/ct.hpp` — CT 模型，State = `manif::Bundle<SO2d, R4>`（待改为 RM 模型）
+- `solution/sukfom.hpp` — SUKFOM 类壳，仅类型别名，无 predict / update
+
+**空文件 / 未开始：**
+- `model/motion/ctrv.hpp`、`model/imu/base_imu_model.hpp`
+- `problem/motion_tracking.hpp`、`problem/pose_estimation.hpp`
+- `solution/btc_tcf.hpp`、`solution/imm.hpp`、`solution/icp.hpp`、`solution/inekf.hpp`、`solution/ndt.hpp`、`solution/epnp.hpp`
+- `core/kabsch.hpp`、`core/bar_itzhack.hpp`、`core/quasar.hpp`
 
 实现原则：
 1. 每个模块独立测试后再进行上层开发
 2. 优先实现最常用、最基础的功能
 3. 使用 Eigen 作为核心线性代数库
 4. 充分利用 Manif 处理流形上的操作
-5. 在需要优化求解时引入 Ceres Solver
+5. 使用 autodiff 库进行自动微分（forward mode dual numbers）
 
 ---
 
@@ -103,32 +120,43 @@ namespace eststack::core {
 
 ---
 
+## Phase 1.5: Model Layer - RM 运动模型 (优先级: 当前最高)
+
+运动模型方向已明确为 **RoboMaster 枪口系（turret-frame）单板运动模型**，不再采用通用 CV/CT/CTRV。
+
+### 状态定义
+
+枪口系下装甲板状态 `[x, y, z, vx, vy, vz, theta, omega, r]`（9 维）：
+- `(x, y, z)` — 装甲板位置
+- `(vx, vy, vz)` — 装甲板速度
+- `theta` — 偏航角
+- `omega` — 偏航角速度
+- `r` — 旋转半径
+
+流形结构待确认（可能为 `Bundle<SO2d, Rn<double, 7>>` 或纯 `Rn<double, 9>`，取决于对 theta 周期性的处理需求）。
+
+### 文件规划
+
+| 文件 | 当前状态 | 说明 |
+|------|----------|------|
+| `model/motion/cv.hpp` | 骨架 | 改为 RM 匀速模型（omega=0 简化） |
+| `model/motion/ct.hpp` | 骨架 | 改为 RM 匀转模型（omega != 0） |
+| `model/motion/ctrv.hpp` | 空文件 | 可选：带变转速的扩展模型 |
+
+每个模型需实现 `computeImpl` / `computeStateJacobianImpl` / `computeNoiseJacobianImpl`，继承自 `BaseTransitionModel<Derived>`。
+
+**注意**：模型只需提供 df/dx（对 nominal state 的 Jacobian），ESKF 将在内部完成到 df/d(delta_x) 的转换（参见 3.2 节设计待办）。
+
+---
+
 ## Phase 2: Problem Layer - 问题接口定义
 
-### 2.1 `problem/base_problem.hpp` - 基础问题接口
-**目标**: 统一的问题定义抽象
+### 2.1 `problem/base_problem.hpp` - 基础问题接口 ✅ 部分完成
+**目标**: 统一的估计问题抽象（CRTP + concept 设计，非虚函数）
 
-**实现内容**:
-```cpp
-namespace eststack::problem {
-  template<typename StateType, typename MeasurementType>
-  class BaseProblem {
-  public:
-    using State = StateType;
-    using Measurement = MeasurementType;
-
-    virtual ~BaseProblem() = default;
-
-    // 状态维度
-    virtual size_t state_dim() const = 0;
-    virtual size_t measurement_dim() const = 0;
-
-    // 问题描述
-    virtual std::string name() const = 0;
-    virtual std::string description() const = 0;
-  };
-}
-```
+**实际实现**:
+- `EstProblem` concept — 约束 `isInitialized()` 和 `setSolution()`
+- `BaseProblem<Derived, SolutionT>` CRTP 基类 — 持有 `unique_ptr<SolutionT>`，提供 `isInitialized` / `setSolution`
 
 ---
 
@@ -227,70 +255,44 @@ namespace eststack::problem {
 
 ## Phase 3: Solution Layer - 滤波器实现
 
-### 3.1 `solution/base_kf.hpp` - Kalman滤波器基类
-**目标**: 统一的KF接口
+### 3.1 `solution/base_kf.hpp` - Kalman 滤波器基类 ✅
+**目标**: 统一的 KF 接口（CRTP 设计，零虚函数开销）
 
-**实现内容**:
-```cpp
-namespace eststack::solution {
-  template<typename ProblemType>
-  class BaseKF {
-  public:
-    using State = typename ProblemType::State;
-    using Measurement = typename ProblemType::Measurement;
-
-    virtual ~BaseKF() = default;
-
-    // 核心接口
-    virtual void predict(double dt) = 0;
-    virtual void update(const Measurement& z) = 0;
-
-    // 状态访问
-    virtual State get_state() const = 0;
-    virtual Eigen::MatrixXd get_covariance() const = 0;
-
-    // 初始化
-    virtual void initialize(const State& x0, const Eigen::MatrixXd& P0) = 0;
-  };
-}
-```
+**实际实现**:
+- `BaseKF<Derived, StateT>` CRTP 基类
+- `predict()` / `update()` 分发至 Derived 的 `predictImpl()` / `updateImpl()`
+- `setState` / `getState` / `setStateCovariance` / `getStateCovariance`
+- 使用 `eststack::Covariance<State>` 编译期固定大小协方差矩阵
 
 ---
 
-### 3.2 `solution/eskfom.hpp` - Error-State Kalman Filter on Manifold
-**目标**: 基于流形的ESKFOM实现
+### 3.2 `solution/eskfom.hpp` - Error-State Kalman Filter on Manifold ✅
+**目标**: 基于流形的 ESKFOM 实现
 
-**核心特性**:
-- 使用 Manif 库处理 SE(3) 流形
-- Error-state formulation（误差状态形式）
-- 适用于IMU + GPS/视觉融合
+**实际实现**:
+- `ESKFOM<StateT, P>` 模板类，`P` 控制 Global / Local 扰动约定
+- `predictImpl()` — 通过 TransitionModel 获取 Fx / Fw，传播协方差 `P = Fx P FxT + Fw Q FwT`
+- `updateImpl()` — 完整更新流程：
+  - 当 MeasDim > 6 * StateDim 时自动切换 SMW lemma（matrix inversion lemma）计算 Kalman gain
+  - 误差状态注入：Global 用 `lplus`，Local 用 `rplus`
+  - Joseph form 协方差更新保证正半定
+  - Reset Jacobian：`G = I +/- 0.5 * dx.smallAdj()`
 
-**实现要点**:
-```cpp
-namespace eststack::solution {
-  template<typename ProblemType>
-  class ESKFOM : public BaseKF<ProblemType> {
-  private:
-    State nominal_state_;       // 名义状态
-    Eigen::VectorXd error_state_;  // 误差状态
-    Eigen::MatrixXd P_;         // 误差状态协方差
+**设计待办 — ESKF Jacobian 转换**:
 
-  public:
-    void predict(double dt) override;
-    void update(const Measurement& z) override;
+当前 ESKFOM 假设运动模型直接提供误差状态 Jacobian（df/d(delta_x) 和 df/dw），但更通用的做法是：
+- 运动模型只提供对 nominal state 的 Jacobian：df/dx（对用户更自然）
+- ESKF 内部负责链式法则转换：`df/d(delta_x) = df/dx * dx/d(delta_x)`
 
-  private:
-    // 误差状态的传播
-    Eigen::MatrixXd compute_state_transition(double dt);
-    // 注入误差状态到名义状态（流形操作）
-    void inject_error_state();
-  };
-}
-```
+其中 `dx/d(delta_x)` 取决于流形结构和扰动约定：
+- Local 扰动：`dx/d(delta_x) = Jr(delta_x)`（右 Jacobian）
+- Global 扰动：`dx/d(delta_x) = Jl(delta_x)`（左 Jacobian）
+
+此设计将在后续迭代中实现，使模型层与滤波器层进一步解耦。
 
 **依赖**: Manif, Eigen
 
-**适用问题**: IMUFiltering, PoseEstimation
+**适用问题**: IMU 滤波、RM 目标跟踪、位姿估计
 
 ---
 
@@ -435,13 +437,13 @@ namespace eststack::solution {
     );
 
   private:
-    // 使用 Ceres 求解非线性优化问题
+    // 使用 autodiff 或手写优化求解非线性问题
     void solve_joint_optimization();
   };
 }
 ```
 
-**依赖**: Ceres Solver, Eigen
+**依赖**: Eigen（Ceres Solver 暂未引入，如需非线性优化后续评估）
 
 **特点**: 比ICP更鲁棒，适合退化环境
 
@@ -480,22 +482,26 @@ examples/
 
 ## 实现优先级排序
 
-### P0（当前迭代：先打通 ESKFOM）
-1. ✅ `model/base_model.hpp` - 概念约束已落地
-2. ✅ `solution/base_kf.hpp` - CRTP 基类已落地
-3. `problem/base_problem.hpp` - 先补最小问题接口（给 ESKFOM 对齐输入输出）
-4. `solution/eskfom.hpp` - 完善为可编译可调用的最小实现（predict/update/协方差传播）
-5. `test/test_eskfom_minimal.cpp` - 增加最小闭环测试（编译 + 一次 predict/update）
+### P0（当前迭代：RM 运动模型 + Jacobian 转换 + 闭环测试）
+1. ✅ `types.hpp` - concepts、类型别名、Perturbation 枚举
+2. ✅ `model/base_model.hpp` - 概念约束 + CRTP 基类
+3. ✅ `solution/base_kf.hpp` - CRTP 基类
+4. ✅ `solution/eskfom.hpp` - 完整 predict / update（SMW lemma、Joseph form、reset Jacobian）
+5. ✅ `problem/base_problem.hpp` - EstProblem concept + BaseProblem CRTP 基类（部分完成）
+6. `model/motion/cv.hpp` - RM 枪口系匀速模型实现（computeImpl + Jacobian）
+7. `model/motion/ct.hpp` - RM 枪口系匀转模型实现（computeImpl + Jacobian）
+8. `solution/eskfom.hpp` 增加 Jacobian 转换 — ESKF 内部 `df/d(delta_x) = df/dx * dx/d(delta_x)`
+9. `test/test_eskfom_minimal.cpp` - 最小闭环测试（编译 + 一次 predict / update）
 
 ### P1（ESKFOM 后：BTC_TCF）
-6. `solution/btc_tcf.hpp` - 建立 BTC 描述子 + TCF 接口骨架并接入优化入口
-7. `test/test_btc_tcf.cpp` - 接口与基础数据流测试
+10. `solution/btc_tcf.hpp` - 建立 BTC 描述子 + TCF 接口骨架并接入优化入口
+11. `test/test_btc_tcf.cpp` - 接口与基础数据流测试
 
 ### P2（回补 Core 与扩展算法）
-8. `core/kabsch.hpp` - SVD 配准基础工具
-9. `core/bar_itzhack.hpp` - 稳健 DCM→Quaternion
-10. `solution/icp.hpp` - 依赖 kabsch 的经典配准
-11. `core/quasar.hpp` / `solution/sukfm.hpp` / `solution/imm.hpp` - 后续增强
+12. `core/kabsch.hpp` - SVD 配准基础工具
+13. `core/bar_itzhack.hpp` - 稳健 DCM→Quaternion
+14. `solution/icp.hpp` - 依赖 kabsch 的经典配准
+15. `core/quasar.hpp` / `solution/sukfm.hpp` / `solution/imm.hpp` - 后续增强
 
 ---
 
@@ -507,7 +513,7 @@ examples/
 # 依赖查找
 find_package(Eigen3 REQUIRED)
 find_package(manif REQUIRED)
-find_package(Ceres REQUIRED)
+find_package(autodiff REQUIRED)
 
 # 可选依赖
 find_package(GTest)  # 测试
@@ -519,7 +525,7 @@ target_include_directories(eststack_core INTERFACE include)
 target_link_libraries(eststack_core INTERFACE
   Eigen3::Eigen
   manif::manif
-  Ceres::ceres
+  autodiff::autodiff
 )
 
 # 如果有实现文件
@@ -564,15 +570,8 @@ endif()
 ## 总结
 
 这个框架的设计理念是：
-- **分层解耦**: Core不依赖Problem/Solution
+- **分层解耦**: Core 不依赖 Problem / Solution
 - **模板化**: 适应不同的状态和测量类型
-- **流形支持**: 使用Manif处理李群
-- **优化驱动**: 在需要时用Ceres求解非线性优化
-
-预计开发时间：
-- Phase 1-2: 2-3周
-- Phase 3: 2-3周
-- Phase 4: 3-4周
-- Phase 5: 1-2周
-
-**总计**: 约2-3个月可完成基础框架。
+- **流形支持**: 使用 Manif 处理李群
+- **自动微分**: 使用 autodiff 库（forward mode dual numbers）
+- **CRTP 优先**: 全链路编译期多态，零虚函数开销

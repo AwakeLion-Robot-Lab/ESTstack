@@ -78,9 +78,21 @@ namespace eststack
                              const typename TransitionModel::ProcessNoise &Q,
                              Args &&...args)
             {
-                /* NOTE that Fx and Fw is jacobian about error state w.r.t. error state and noise  */
-                const auto Fx = model.computeStateJacobian(this->x_, u);
+                /***
+                 * model provides nominal state Jacobian df/dx in tangent space
+                 * ESKF converts to error-state Jacobian via chain rule: df/d(δx) = df/dx · dx/d(δx)
+                 * Local (right) perturbation: dx/d(δx) = Jr(0) = I
+                 * Global (left) perturbation: dx/d(δx) = Adj(x^{-1})
+                 */
+                const auto Fx_nominal = model.computeStateJacobian(this->x_, u);
                 const auto Fw = model.computeNoiseJacobian(this->x_, u);
+                const auto Fx = [&]() -> StateCovariance
+                {
+                    if constexpr (P == eststack::Perturbation::Global)
+                        return (Fx_nominal * this->x_.inverse().adj()).eval();
+                    else
+                        return Fx_nominal;
+                }();
 
                 this->x_ = model.compute(this->x_, u);
 
@@ -104,9 +116,19 @@ namespace eststack
                             const typename MeasurementModel::MeasNoise &R,
                             Args &&...args)
             {
-                /* NOTE that H and Hw is jacobian about measurement w.r.t. error state and noise  */
-                const auto H = model.computeMeasJacobian(this->x_);
+                /***
+                 * model provides nominal measurement Jacobian dh/dx in tangent space
+                 * convert to error-state Jacobian: dh/d(δx) = dh/dx · dx/d(δx)
+                 */
+                const auto H_nominal = model.computeMeasJacobian(this->x_);
                 const auto Hw = model.computeNoiseJacobian(this->x_);
+                const auto H = [&]()
+                {
+                    if constexpr (P == eststack::Perturbation::Global)
+                        return (H_nominal * this->x_.inverse().adj()).eval();
+                    else
+                        return H_nominal;
+                }();
 
                 const auto y = (z - model.compute(this->x_)).eval();
 
