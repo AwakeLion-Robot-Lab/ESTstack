@@ -41,7 +41,7 @@ namespace eststack
          * @brief base class for Kalman filter
          * @tparam Derived derived kalman filter class
          * @tparam StateT state type used by the filter
-         * @details CRTP design for compile-time polymorphism, which is more efficient and flexibie
+         * @details CRTP design for compile-time polymorphism, which is more efficient and flexible
          */
         template <typename Derived, typename StateT>
         class BaseKF
@@ -121,11 +121,14 @@ namespace eststack
 
             /***
              * @brief state vector
+             * @details it represents nominal state in ESKFOM
              */
             State x_;
 
             /***
              * @brief state covariance matrix
+             * @details it represents error covariance in ESKFOM which is defined on the tangent space of the manifold (homeomorphic to Euclidean space),
+             *          since the "nominal covariance" is not well-defined on manifold
              */
             StateCovariance P_ = StateCovariance::Identity();
         };

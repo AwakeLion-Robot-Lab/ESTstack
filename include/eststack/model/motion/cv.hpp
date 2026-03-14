@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MODEL__CT_HPP
-#define MODEL__CT_HPP
+#ifndef MODEL__CV_HPP
+#define MODEL__CV_HPP
 
 // Eigen library
 #include <Eigen/Dense>
@@ -22,7 +22,9 @@
 // manif library
 #include <manif/Bundle.h>
 #include <manif/Rn.h>
-#include <manif/SO2.h>
+
+// autodiff library
+#include <autodiff/forward/dual.hpp>
 
 // ESTstack library
 #include "eststack/model/base_model.hpp"
@@ -39,12 +41,12 @@ namespace eststack
     namespace model
     {
         /***
-         * @brief coordinated turn motion model
+         * @brief constant velocity motion model
          */
-        class CT : public BaseTransitionModel<CT>
+        class CV : public BaseTransitionModel<CV>
         {
         public:
-            using State = manif::Bundle<manif::SO2d, manif::R4>;
+            using State = manif::Rn<double, 4>;
             using ControlInput = Eigen::Vector2d;
             using StateJacobian = eststack::Covariance<State>;
             using NoiseJacobian = eststack::Covariance<State>;
@@ -76,4 +78,4 @@ namespace eststack
     }
 }
 
-#endif //! MODEL__CT_HPP
+#endif //! MODEL__CV_HPP

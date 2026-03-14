@@ -79,9 +79,9 @@ namespace eststack
             typename T::State;
             typename T::Measurement;
             typename T::MeasJacobian;
-            /* for dim(T_I(M)) != dim(control input), like SE_2(3) and mostly Bundle */
+            /* for dim(measurement) != dim(measurement noise) */
             typename T::NoiseJacobian;
-            typename T::MeasurementNoise;
+            typename T::MeasNoise;
 
             { model.compute(std::declval<typename T::State>()) } -> std::same_as<typename T::Measurement>;
             { model.computeMeasJacobian(std::declval<typename T::State>()) } -> std::same_as<typename T::MeasJacobian>;

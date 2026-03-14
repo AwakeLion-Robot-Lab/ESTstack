@@ -1,12 +1,31 @@
 # References
 
-Main references used in ESTstack. See per-algorithm explanation pages for detailed equation-level citations.
+Main bibTeX references used in ESTstack. See per-algorithm explanation pages for detailed equation-level citations.
+
+| No.  | Key                 | Short description                                   |
+| ---- | ------------------- | --------------------------------------------------- |
+| [1]  | wang2023bayesian    | 贝叶斯滤波重制版 (Bilibili)                         |
+| [2]  | zhang2024sdm366     | SDM366 — Optimal Control and Estimation (SUSTech)   |
+| [3]  | barfoot2024state    | State Estimation for Robotics, 2nd ed.              |
+| [4]  | sola2017quaternion  | Quaternion kinematics for the error-state KF        |
+| [5]  | sola2018micro       | A micro Lie theory for state estimation in robotics |
+| [6]  | blanco2010tutorial  | SE(3) transformation parameterizations tutorial     |
+| [7]  | qiu2019monocular    | Unbiased linear system model for VIO                |
+| [8]  | sola2021lie_video   | Lie theory for the roboticist (YouTube)             |
+| [9]  | hammarstrand_ssy345 | SSY345 — Sensor Fusion and Nonlinear Filtering      |
+| [10] | yuan2024btc         | BTC descriptor for 3D place recognition             |
+| [11] | shi2024ransac       | RANSAC two-stage consensus for 3D registration      |
+| [12] | deray2020manif      | manif — C++ Lie group library                       |
+| [13] | deray2021kalmanif   | kalmanif — Kalman Filters on Lie groups             |
+| [14] | gao2024slam         | 自动驾驶与机器人中的SLAM技术                        |
+| [15] | wang2026superlio    | Super-LIO — robust LiDAR-Inertial Odometry          |
 
 ---
 
 ## Kalman Filter
 
 ```bibtex
+% [1]
 @misc{wang2023bayesian,
   title        = {贝叶斯滤波重制版},
   author       = {忠厚老实的老王},
@@ -17,6 +36,7 @@ Main references used in ESTstack. See per-algorithm explanation pages for detail
                   nonlinear KF (EKF/UKF), particle filter, and resampling}
 }
 
+% [2]
 @misc{zhang2024sdm366,
   title        = {{SDM366} -- Optimal Control and Estimation},
   author       = {Zhang, Wei},
@@ -28,8 +48,9 @@ Main references used in ESTstack. See per-algorithm explanation pages for detail
                   LQR, observer design, and Kalman filter}
 }
 
-% Graduate-level reference; requires VERY SOLID linear algebra, probability (including stochastic
-% process) and Lie group background. Highly recommended once fundamentals are REALLY in place.
+% [3] Graduate-level reference; requires VERY SOLID linear algebra, probability
+% (including stochastic process) and Lie group background.
+% Highly recommended once fundamentals are REALLY in place.
 @book{barfoot2024state,
   title     = {State Estimation for Robotics},
   author    = {Barfoot, Timothy D.},
@@ -46,6 +67,7 @@ Main references used in ESTstack. See per-algorithm explanation pages for detail
 ## ESKFOM
 
 ```bibtex
+% [4]
 @article{sola2017quaternion,
   title   = {Quaternion kinematics for the error-state {K}alman filter},
   author  = {Sol{\`a}, Joan},
@@ -56,6 +78,7 @@ Main references used in ESTstack. See per-algorithm explanation pages for detail
              IMU error equations and low-cost IMU noise modeling}
 }
 
+% [5]
 @article{sola2018micro,
   title   = {A micro {L}ie theory for state estimation in robotics},
   author  = {Sol{\`a}, Joan and Deray, Jeremie and Atchuthan, Dinesh},
@@ -66,6 +89,7 @@ Main references used in ESTstack. See per-algorithm explanation pages for detail
              SO(3), SE(3), SE_2(3) and Bundle groups}
 }
 
+% [6]
 @techreport{blanco2010tutorial,
   title       = {A tutorial on {SE(3)} transformation parameterizations
                  and on-manifold optimization},
@@ -76,6 +100,7 @@ Main references used in ESTstack. See per-algorithm explanation pages for detail
   note        = {SE(3) representations, Jacobians, and manifold-based optimization}
 }
 
+% [7]
 @article{qiu2019monocular,
   title   = {Monocular Visual-Inertial Odometry with an Unbiased Linear
              System Model and Robust Feature Tracking Front-End},
@@ -88,6 +113,7 @@ Main references used in ESTstack. See per-algorithm explanation pages for detail
   note    = {Unbiased linear system model for VIO}
 }
 
+% [8]
 @misc{sola2021lie_video,
   title        = {Lie theory for the roboticist},
   author       = {Sol{\`a}, Joan},
@@ -99,11 +125,14 @@ Main references used in ESTstack. See per-algorithm explanation pages for detail
 }
 ```
 
----
+## SUKFOM
 
-## CT (Coordinated Turn) Exact Modeling
+See also: [1], [9]
+
+## Motion Modeling
 
 ```bibtex
+% [9]
 @misc{hammarstrand_ssy345,
   title        = {{SSY345} -- Sensor Fusion and Nonlinear Filtering},
   author       = {Hammarstrand, Lars},
@@ -116,9 +145,10 @@ Main references used in ESTstack. See per-algorithm explanation pages for detail
 
 ---
 
-## BTC Descriptor 
+## BTC Descriptor
 
 ```bibtex
+% [10]
 @article{yuan2024btc,
   title   = {{BTC}: A Binary and Triangle Combined Descriptor
              for 3-{D} Place Recognition},
@@ -134,12 +164,10 @@ Main references used in ESTstack. See per-algorithm explanation pages for detail
 }
 ```
 
----
-
-
-### Two-Stage Consensus Filtering
+## Two-Stage Consensus Filtering
 
 ```bibtex
+% [11]
 @article{shi2024ransac,
   title   = {{RANSAC} Back to {SOTA}: A Two-Stage Consensus Filtering
              for Real-Time {3D} Registration},
@@ -161,6 +189,7 @@ Main references used in ESTstack. See per-algorithm explanation pages for detail
 ## Code Refinement
 
 ```bibtex
+% [12]
 @article{deray2020manif,
   title   = {manif: A small header-only library for {L}ie theory},
   author  = {Deray, Jeremie and Sol{\`a}, Joan},
@@ -174,6 +203,7 @@ Main references used in ESTstack. See per-algorithm explanation pages for detail
              automatic Jacobians via plus/minus}
 }
 
+% [13]
 @misc{deray2021kalmanif,
   title   = {kalmanif: A small collection of {K}alman Filters on {L}ie groups},
   author  = {Deray, Jeremie},
@@ -183,6 +213,7 @@ Main references used in ESTstack. See per-algorithm explanation pages for detail
              SE_2(3) IMU strap-down ESKF reference (demo\_se\_2\_3.cpp)}
 }
 
+% [14]
 @book{gao2024slam,
   title     = {自动驾驶与机器人中的{SLAM}技术},
   author    = {高翔},
@@ -191,5 +222,17 @@ Main references used in ESTstack. See per-algorithm explanation pages for detail
   isbn      = {978-7-121-45878-1},
   note      = {Covers LiDAR/visual SLAM, Kalman filtering, graph optimization,
                and point cloud registration with modern C++ implementation}
+}
+
+% [15]
+@article{wang2026superlio,
+  title   = {Super-LIO: A Robust and Efficient LiDAR-Inertial Odometry System with a Compact Mapping Strategy},
+  author  = {Wang, Liansheng and Zhang, Xinke and Li, Chenhui and He, Dongjiao and Pan, Yihan and Yi, Jianjun},
+  journal = {IEEE Robotics and Automation Letters},
+  year    = {2026},
+  volume  = {11},
+  number  = {3},
+  pages   = {2666--2673},
+  doi     = {10.1109/LRA.2026.3653372}
 }
 ```

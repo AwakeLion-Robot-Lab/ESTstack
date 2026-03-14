@@ -53,6 +53,9 @@ namespace eststack
             using State = typename Base::State;
             using StateCovariance = typename Base::StateCovariance;
 
+            using Ptr = std::shared_ptr<ESKFOM>;
+            using ConstPtr = std::shared_ptr<const ESKFOM>;
+
             /***
              * @brief default constructor
              */
@@ -75,14 +78,17 @@ namespace eststack
                              const typename TransitionModel::ProcessNoise &Q,
                              Args &&...args)
             {
+                /* NOTE that Fx and Fw is jacobian about error state w.r.t. error state and noise  */
                 const auto Fx = model.computeStateJacobian(this->x_, u);
                 const auto Fw = model.computeNoiseJacobian(this->x_, u);
 
                 this->x_ = model.compute(this->x_, u);
 
                 this->P_ = Fx * this->P_ * Fx.transpose();
-                /* noalias() can fasten matrix operation while LHS do not appear in RHS */
+                /* noalias() can fasten matrix operation while elements in LHS do not appear in RHS */
                 (this->P_).noalias() += Fw * Q * Fw.transpose();
+
+                return true;
             }
 
             /***
@@ -98,15 +104,16 @@ namespace eststack
                             const typename MeasurementModel::MeasNoise &R,
                             Args &&...args)
             {
+                /* NOTE that H and Hw is jacobian about measurement w.r.t. error state and noise  */
                 const auto H = model.computeMeasJacobian(this->x_);
                 const auto Hw = model.computeNoiseJacobian(this->x_);
 
                 const auto y = (z - model.compute(this->x_)).eval();
 
                 /***
-                 * standard kalman gain K = PHT(HPHT + HwRHwT)^{-1}
+                 * standard kalman gain is defined as K = PHT(HPHT + HwRHwT)^{-1}
                  * if measurement dimension >> state dimension (threshold is 6x here), (HPHT+R) is hard to get inverse matrix
-                 * we can use SMW equation, a.k.a. matrix inversion lemma (please refer to chapter 2.2.15, state estimation for robotics, second edition)
+                 * we can use SMW equation, a.k.a. matrix inversion lemma (please refer to chapter 2.2.15, [3])
                  * to get K = (P^{-1} + HT(HwRHw)^{-1} H)^{-1} HT(HwRHwT)^{-1} faster
                  */
                 constexpr int MeasDim = MeasurementModel::MeasJacobian::RowsAtCompileTime;
@@ -126,7 +133,11 @@ namespace eststack
                     }
                 }();
 
-                /* compute error state and inject to nominal state */
+                /***
+                 * compute error state and inject to nominal state
+                 * NOTE that dx is a random variable (discretize to sequence),
+                 * `dx` represents its expectation in injection and reset operations
+                 */
                 const typename State::Tangent dx(K * y);
                 if constexpr (P == eststack::Perturbation::Global)
                     this->x_ = this->x_.lplus(dx);
@@ -140,19 +151,23 @@ namespace eststack
                 this->P_ = IKH * this->P_ * IKH.transpose();
                 (this->P_).noalias() += KHwRHwTKT;
 
-                /* last thing is reset expectation and covaraince of error state */
-                /* if state includes quaternion, you need reset Jacobian = d(dx-E(dx))/d(dx) */
+                /***
+                 * last thing is reset expectation and covariance of error state
+                 * about why wedge operator could be replaced by small adjoint a.k.a. lie algebra adjoint, please refer to explanation/eskfom.md
+                 */
                 const auto Ix = Eigen::Matrix<typename State::Scalar, StateDim, StateDim>::Identity();
                 if constexpr (P == eststack::Perturbation::Global)
                 {
-                    const auto G = Ix + (0.5 * State::hat(dx));
+                    const auto G = Ix + (0.5 * dx.smallAdj());
                     this->P_ = G * this->P_ * G.transpose();
                 }
                 else
                 {
-                    const auto G = Ix - (0.5 * State::hat(dx));
+                    const auto G = Ix - (0.5 * dx.smallAdj());
                     this->P_ = G * this->P_ * G.transpose();
                 }
+
+                return true;
             }
         };
     }

@@ -52,6 +52,7 @@ namespace eststack
         class BaseProblem
         {
         public:
+            using Solution = SolutionT;
             /***
              * @brief check if the problem has been initialized
              */
@@ -60,6 +61,9 @@ namespace eststack
                 return initialized_;
             }
 
+            /***
+             * @brief set specific solution of the problem
+             */
             void setSolution(SolutionT &&sol)
             {
                 solution_ = std::make_unique<SolutionT>(std::forward<SolutionT>(sol));
