@@ -42,7 +42,7 @@ namespace eststack
      * @note assumes the input is symmetric; use isSymmetric() first if unsure
      */
     template <typename Derived>
-    bool isPSD(const Eigen::MatrixBase<Derived> &m)
+    bool isPositiveDefinite(const Eigen::MatrixBase<Derived> &m)
     {
         if (m.rows() != m.cols())
             return false;

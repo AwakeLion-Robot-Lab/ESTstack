@@ -25,6 +25,7 @@
 
 // ESTstack library
 #include "eststack/types.hpp"
+#include "eststack/eigen_traits.hpp"
 
 /***
  * @brief An algorithm set focus on estimation and filtering
@@ -71,6 +72,7 @@ namespace eststack
              */
             void setStateCovariance(const StateCovariance &cov) noexcept
             {
+                assert(isCovariance(cov));
                 P_ = cov;
             }
 

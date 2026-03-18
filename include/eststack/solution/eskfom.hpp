@@ -79,22 +79,37 @@ namespace eststack
                              Args &&...args)
             {
                 /***
-                 * model provides nominal state Jacobian df/dx in tangent space
-                 * ESKF converts to error-state Jacobian via chain rule: df/d(δx) = df/dx · dx/d(δx)
-                 * Local (right) perturbation: dx/d(δx) = Jr(0) = I
-                 * Global (left) perturbation: dx/d(δx) = Adj(x^{-1})
+                 * by default, `manif` and model class provide Jacobians derived
+                 * under local perturbation convention: x(k+1) = x(k) ⊕ δx_l
+                 * So computeStateJacobian() returns F_raw = F_l
+                 * When going to global perturbation, the error state is defined as:
+                 * δx_g = Adj(x) δx_l. We can convert the local transition matrix F_l to global F_g:
+                 * δx_l(k+1) = F_l * δx_l(k)
+                 * Adj(x(k+1))^{-1} * δx_g(k+1) = F_l * Adj(x(k))^{-1} * δx_g(k) + F_{w,l} * w
+                 * => δx_g(k+1) = [Adj(x(k+1)) * F_l * Adj(x(k))^{-1}] * δx_g(k) + [Adj(x(k+1)) * F_{w,l}] * w
                  */
-                const auto Fx_nominal = model.computeStateJacobian(this->x_, u);
-                const auto Fw = model.computeNoiseJacobian(this->x_, u);
+                const auto Fx_raw = model.computeStateJacobian(this->x_, u);
+                const auto Fw_raw = model.computeNoiseJacobian(this->x_, u);
+
+                const State priori_x = model.compute(this->x_, u);
+
                 const auto Fx = [&]() -> StateCovariance
                 {
                     if constexpr (P == eststack::Perturbation::Global)
-                        return (Fx_nominal * this->x_.inverse().adj()).eval();
+                        return (priori_x.adj() * Fx_raw * this->x_.inverse().adj()).eval();
                     else
-                        return Fx_nominal;
+                        return Fx_raw;
                 }();
 
-                this->x_ = model.compute(this->x_, u);
+                const auto Fw = [&]()
+                {
+                    if constexpr (P == eststack::Perturbation::Global)
+                        return (priori_x.adj() * Fw_raw).eval();
+                    else
+                        return Fw_raw;
+                }();
+
+                this->x_ = priori_x;
 
                 this->P_ = Fx * this->P_ * Fx.transpose();
                 /* noalias() can fasten matrix operation while elements in LHS do not appear in RHS */
@@ -117,17 +132,20 @@ namespace eststack
                             Args &&...args)
             {
                 /***
-                 * model provides nominal measurement Jacobian dh/dx in tangent space
-                 * convert to error-state Jacobian: dh/d(δx) = dh/dx · dx/d(δx)
+                 * similar to predict(), computeMeasJacobian() provides the raw measurement Jacobian
+                 * H_raw = H_l derived under Local perturbation
+                 * For Global perturbation, applying the relation δx_l = Adj(x)^{-1} δx_g:
+                 * y = H_l * δx_l + R = H_l * Adj(x)^{-1} * δx_g + R
+                 * => H_g = H_l * Adj(x)^{-1}
                  */
-                const auto H_nominal = model.computeMeasJacobian(this->x_);
+                const auto H_raw = model.computeMeasJacobian(this->x_);
                 const auto Hw = model.computeNoiseJacobian(this->x_);
                 const auto H = [&]()
                 {
                     if constexpr (P == eststack::Perturbation::Global)
-                        return (H_nominal * this->x_.inverse().adj()).eval();
+                        return (H_raw * this->x_.inverse().adj()).eval();
                     else
-                        return H_nominal;
+                        return H_raw;
                 }();
 
                 const auto y = (z - model.compute(this->x_)).eval();
