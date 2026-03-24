@@ -4,9 +4,23 @@
 
 遵循**自底向上**的实现顺序：Core → Problem → Solution
 
-当前执行重点（按当前进度）：**ESKFOM 已完成，当前实现 RM 运动模型 + ESKF Jacobian 转换 + 最小闭环测试**。
+当前执行重点（按当前进度）：**ESKFOM 已完成并改进，当前实现 RM 运动模型 + ESKF Jacobian 转换 + 最小闭环测试**。
 
 本迭代采用里程碑优先：为尽快形成可运行滤波闭环，暂时按 **Solution-first** 推进，再回补 Core 通用算法。
+
+## 最新更新 (2026-03-24)
+
+**ESKFOM 改进（基于 manif se2_localization.cpp 参考实现）：**
+- ✅ 添加可配置的协方差更新方法（Joseph form vs 标准形式）
+- ✅ 添加可选的 reset Jacobian 应用（可针对简单情况禁用）
+- ✅ 修复 dt 参数传递 bug
+- ✅ 添加 innovation 和 innovation covariance 跟踪
+- ✅ 创建 SE2 运动模型 (`model/motion/se2.hpp`)
+- ✅ 创建 SE2 地标测量模型 (`model/measurement/landmark_se2.hpp`)
+- ✅ 创建 SE2 定位示例 (`examples/se2_localization_eskfom.cpp`)
+- ✅ 更新文档（`docs/explanation/eskfom.md`, `eskfom_improvements.md`, `COMPARISON_MANIF.md`）
+
+详见：`docs/explanation/eskfom_improvements.md` 和 `docs/explanation/COMPARISON_MANIF.md`
 
 当前代码进度快照（基于最近提交与文件内容）：
 
@@ -14,14 +28,20 @@
 - `types.hpp` — concepts（LieGroupDoF / EigenRow / DimAtCompileTime）、Jacobian / Covariance 类型别名、Perturbation 枚举、getDimAtCompileTime consteval
 - `model/base_model.hpp` — LieGroupState / TransitionModel / MeasurementModel concepts + BaseTransitionModel / BaseMeasurementModel CRTP 基类
 - `solution/base_kf.hpp` — CRTP 基类，提供 predict / update 分发、state / covariance 存取
-- `solution/eskfom.hpp` — 完整 predict（Fx / Fw 协方差传播）+ update（SMW lemma 大维度优化、Joseph form 协方差、reset Jacobian via smallAdj）
+- `solution/eskfom.hpp` — **已改进** 完整 predict（Fx / Fw 协方差传播）+ update（SMW lemma 大维度优化、可配置 Joseph form / 标准协方差更新、可选 reset Jacobian via smallAdj、innovation 跟踪）
+- `model/motion/se2.hpp` — **新增** SE2 运动模型（用于示例和测试）
+- `model/motion/ct.hpp` — **已完成** CT 模型完整实现（Jacobians 已细化）
+- `model/motion/single_armor.hpp` — **已完成** 单装甲板模型完整实现
+- `model/measurement/landmark_se2.hpp` — **新增** SE2 地标测量模型（链式法则 Jacobian）
 - `problem/base_problem.hpp` — EstProblem concept + BaseProblem CRTP 基类（isInitialized / setSolution 已实现）
-- `docs/explanation/eskfom.md` — Reset Jacobian 推导说明（wedge vs smallAdj）
+- `docs/explanation/eskfom.md` — Reset Jacobian 推导说明 + 协方差更新方法配置指南
+- `docs/explanation/eskfom_improvements.md` — **新增** ESKFOM 改进详细说明
+- `docs/explanation/COMPARISON_MANIF.md` — **新增** ESKFOM 与 manif 参考实现详细对比
 - `docs/explanation/references.md` — 15 条 BibTeX 参考文献
+- `examples/se2_localization_eskfom.cpp` — **新增** SE2 定位完整示例
+- `examples/README.md` — **新增** 示例说明文档
 
 **骨架（类声明完成，compute 方法仅声明无实现）：**
-- `model/motion/cv.hpp` — CV 模型，State = `manif::Rn<double, 4>`（待改为 RM 模型）
-- `model/motion/ct.hpp` — CT 模型，State = `manif::Bundle<SO2d, R4>`（待改为 RM 模型）
 - `solution/sukfom.hpp` — SUKFOM 类壳，仅类型别名，无 predict / update
 
 **空文件 / 未开始：**
