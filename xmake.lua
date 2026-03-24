@@ -48,4 +48,16 @@ namespace("fosu-awakelion")
                 add_tests("ESTstack-test", {runargs = {"--gtest_color=yes"}})
         end
     end
+
+    -- Build examples
+    for _, file in ipairs(os.files("examples/*.cpp")) do
+        local name = path.basename(file)
+        target("ESTstack-example-" .. name)
+            set_kind("binary")
+            set_default(false)
+            add_files(file)
+            add_deps("ESTstack")
+            set_rundir("$(projectdir)")
+    end
+
 namespace_end() -- namespace fosu-awakelion
