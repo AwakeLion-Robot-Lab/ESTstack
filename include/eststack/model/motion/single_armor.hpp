@@ -28,7 +28,7 @@
 #include "eststack/types.hpp"
 
 /***
- * @brief An algorithm set focus on estimation and filtering
+ * @brief An algorithm set focus on state estimation
  * @author jinhua "siyiovo" deng
  */
 namespace eststack
@@ -39,29 +39,24 @@ namespace eststack
     {
         /***
          * @brief RM single armor motion model
-         * @details state: [x, y, z, vx, vy, vz, theta, omega, r]
+         * @details state: [x, y, z, vx, vy, vz, theta, omega]
          *              - x, y, z: target position in gun frame
          *              - vx, vy, vz: target velocity in gun frame
          *              - theta: target yaw angle (SO(2) manifold)
          *              - omega: yaw angular velocity
-         *              - r: radius from rotation center to armor
          *          control input: [x, y, z, theta]
-         *          process noise: [vx, vy, vz, omega, r]
+         *          process noise: [vx, vy, vz, omega]
          */
         class SingleArmor : public BaseTransitionModel<SingleArmor>
         {
         public:
             using State = manif::Bundle<double, manif::SO2, manif::R8>;
             using ControlInput = Eigen::Vector4d;
-            using ProcessNoise = Eigen::Vector<double, 5>;
+            using ProcessNoise = Eigen::Vector<double, 4>;
 
-            /***
-             * @brief compute the transition model
-             * @param x current state
-             * @param u control input (dt)
-             * @return next state
-             */
-            State computeImpl(const State &x, const ControlInput &u) const;
+            [[deprecated]]
+            State autoComputeImpl(const State &x, const ControlInput &u,
+                                  Eigen::Ref<StateJacobian> Fx, Eigen::Ref<NoiseJacobian> Fw, const double &dt) const;
 
             /***
              * @brief compute the state jacobian
@@ -69,7 +64,7 @@ namespace eststack
              * @param u control input (dt)
              * @return state jacobian matrix
              */
-            StateJacobian computeStateJacobianImpl(const State &x, const ControlInput &u) const;
+            StateJacobian computeStateJacobianImpl(const State &x, const ControlInput &u, const double &dt) const;
 
             /***
              * @brief compute the noise jacobian

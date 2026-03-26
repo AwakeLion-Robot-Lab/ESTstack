@@ -85,20 +85,6 @@ namespace eststack
      */
     template <DimAtCompileTime T>
     using Covariance = Jacobian<T, T>;
-
-    /***
-     * @brief perturbation convention on manifold
-     * @details Global (left): y = Exp({\epsilon}^δx) ∘ x
-     *          Local (right): y = x ∘ Exp({\tau}^δx)
-     *          it's well known that y = Exp({\epsilon}^δx) ∘ x = x ∘ Exp({\tau}^δx)
-     *          which get adjoint of manifold: Exp({\epsilon}^δx) = x ∘ Exp({\tau}^δx) ∘ x^{-1}
-     */
-    enum class Perturbation
-    {
-        Global,
-        Local
-    };
-
 }
 
 #endif //! ESTSTACK__TYPES_HPP

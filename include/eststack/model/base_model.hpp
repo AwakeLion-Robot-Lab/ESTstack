@@ -21,13 +21,14 @@
 // C++ standard library
 #include <concepts>
 #include <type_traits>
+#include <tuple>
 
 // eststack library
 #include "eststack/types.hpp"
 #include "eststack/eigen_traits.hpp"
 
 /***
- * @brief An algorithm set focus on estimation and filtering
+ * @brief An algorithm set focus on state estimation
  * @author jinhua "siyiovo" deng
  */
 namespace eststack
@@ -53,7 +54,7 @@ namespace eststack
             { T::RepSize } -> std::convertible_to<int>;
 
             /* plus operation constraint: SO(3) x R^3 -> SO(3) */
-            { state + std::declval<T::Tangent>() } -> std::same_as<T>;
+            { state + std::declval<typename T::Tangent>() } -> std::same_as<T>;
             /* minus operation constraint: SO(3) x SO(3) -> R^3 */
             { state - std::declval<T>() } -> std::same_as<typename T::Tangent>;
         };
@@ -62,7 +63,7 @@ namespace eststack
          * @brief compute with autodiff concept
          */
         template <typename T>
-        concept autoComputable = std::is_same_v<typename T::ControlInput, typename T::State::Tangent>;
+        concept AutoComputable = std::is_same_v<typename T::ControlInput, typename T::State::Tangent>;
 
         /***
          * @brief transition model concept
@@ -78,12 +79,11 @@ namespace eststack
             typename T::NoiseJacobian;
 
             {
-                model.autoCompute(std::declval<typename T::State>(), std::declval<typename T::ControlInput>(), std::declval<typename T::Scalar>(),
+                model.autoCompute(std::declval<typename T::State>(), std::declval<typename T::ControlInput>(), std::declval<double>(),
                                   std::declval<Eigen::Ref<typename T::StateJacobian>>(), std::declval<Eigen::Ref<typename T::NoiseJacobian>>())
             } -> std::same_as<typename T::State>;
-            { model.compute(std::declval<typename T::State>(), std::declval<typename T::ControlInput>(), std::declval<typename T::Scalar>()) } -> std::same_as<typename T::State>;
-            { model.computeStateJacobian(std::declval<typename T::State>(), std::declval<typename T::ControlInput>(), std::declval<typename T::Scalar>()) } -> std::same_as<typename T::StateJacobian>;
-            { model.computeNoiseJacobian(std::declval<typename T::State>(), std::declval<typename T::ControlInput>(), std::declval<typename T::Scalar>()) } -> std::same_as<typename T::NoiseJacobian>;
+            { model.compute(std::declval<typename T::State>(), std::declval<typename T::ControlInput>(), std::declval<double>()) } -> std::same_as<typename T::State::Tangent>;
+            { model.computeJacobians(std::declval<typename T::State>(), std::declval<typename T::ControlInput>(), std::declval<double>()) } -> std::same_as<std::tuple<typename T::StateJacobian, typename T::NoiseJacobian>>;
         };
 
         /***
@@ -98,11 +98,8 @@ namespace eststack
             /* for dim(measurement) != dim(measurement noise) */
             typename T::NoiseJacobian;
 
-            { model.autoCompute(std::declval<typename T::State>(), std::declval<Eigen::Ref<typename T::MeasJacobian>>(),
-                                std::declval<Eigen::Ref<typename T::NoiseJacobian>>()) } -> std::same_as<typename T::Measurement>;
-            { model.compute(std::declval<typename T::State>()) } -> std::same_as<typename T::Measurement>;
-            { model.computeMeasJacobian(std::declval<typename T::State>()) } -> std::same_as<typename T::MeasJacobian>;
-            { model.computeNoiseJacobian(std::declval<typename T::State>()) } -> std::same_as<typename T::NoiseJacobian>;
+            { model.compute(std::declval<typename T::State>(), std::declval<double>()) } -> std::same_as<typename T::Measurement>;
+            { model.computeJacobians(std::declval<typename T::State>(), std::declval<double>()) } -> std::same_as<std::tuple<typename T::MeasJacobian, typename T::NoiseJacobian>>;
         };
 
         /***
@@ -122,18 +119,6 @@ namespace eststack
             using NoiseJacobian = eststack::Jacobian<State, ProcessNoise>;
 
             /***
-             * @brief compute the transition model
-             * @param x current state
-             * @param u control input
-             * @param dt time step
-             * @return priori state
-             */
-            State compute(const State &x, const ControlInput &u, const Scalar &dt) const
-            {
-                return static_cast<const Derived *>(this)->computeImpl(x, u, dt);
-            }
-
-            /***
              * @brief compute the transition model with autodiff
              * @param[in] x current state
              * @param[in] u control input
@@ -143,41 +128,37 @@ namespace eststack
              * @return priori state
              * @details explanation reference (1): https://github.com/artivis/manif/blob/devel/docs/explanation/autodiff.md
              *          explanation reference (2): explanation/model.md
-             *          API reference:         https://github.com/artivis/manif/blob/devel/include/manif/impl/lie_group_base.h#L184
-             *          HOW-TO MODIFY reference (dim(control) != dim(noise)):
-             *                                 https://github.com/artivis/kalmanif/blob/devel/include/kalmanif/system_models/simple_imu_system_model.h
              */
             State autoCompute(const State &x, const ControlInput &u,
-                              Eigen::Ref<StateJacobian> Fx, Eigen::Ref<NoiseJacobian> Fw, const Scalar &dt) const
+                              Eigen::Ref<StateJacobian> Fx, Eigen::Ref<NoiseJacobian> Fw, const double &dt) const
             {
-                if constexpr (autoComputable<Derived>)
-                {
-                    return x.rplus(u, Fx, Fw, dt);
-                }
+                static_assert(AutoComputable<Derived>, "this is an non-auto-computable model, please modify other functions!");
+                const typename State::Tangent tau = u * dt;
+                return x.rplus(tau, Fx, Fw);
             }
 
             /***
-             * @brief compute the state jacobian (F_x)
-             * @param x current state
-             * @param u control input
-             * @param dt time step
-             * @return state jacobian matrix
+             * @brief compute small increment via transition model
+             * @param[in] x current state
+             * @param[in] u control input
+             * @param[in] dt time step
+             * @return small increment in tangent space
              */
-            StateJacobian computeStateJacobian(const State &x, const ControlInput &u, const Scalar &dt) const
+            State::Tangent compute(const State &x, const ControlInput &u, const double &dt) const
             {
-                return static_cast<const Derived *>(this)->computeStateJacobianImpl(x, u, dt);
+                return static_cast<const Derived *>(this)->computeImpl(x, u, dt);
             }
 
             /***
-             * @brief compute the process noise jacobian (F_w)
-             * @param x current state
-             * @param u control input
-             * @param dt time step
-             * @return noise jacobian matrix
+             * @brief compute jacobians of the transition model
+             * @param[in] x current state
+             * @param[in] u control input
+             * @param[in] dt time step
+             * @return state jacobian and noise jacobian
              */
-            NoiseJacobian computeNoiseJacobian(const State &x, const ControlInput &u, const Scalar &dt) const
+            auto computeJacobians(const State &x, const ControlInput &u, const double &dt) -> std::tuple<StateJacobian, NoiseJacobian>
             {
-                return static_cast<const Derived *>(this)->computeNoiseJacobianImpl(x, u, dt);
+                return static_cast<const Derived *>(this)->computeJacobiansImpl(x, u, dt);
             }
 
         protected:
@@ -204,52 +185,24 @@ namespace eststack
             using NoiseJacobian = eststack::Jacobian<Measurement, MeasNoise>;
 
             /***
-             * @brief compute the measurement model
-             * @param x current state
-             * @param dt time step
-             * @return expected measurement
-             */
-            Measurement compute(const State &x, const Scalar &dt) const
-            {
-                return static_cast<const Derived *>(this)->computeImpl(x, dt);
-            }
-
-            /***
-             * @brief compute the measurement model with autodiff
+             * @brief compute expected measurement
              * @param[in] x current state
-             * @param[out] H measurement jacobian
-             * @param[out] Hw noise jacobian
              * @param[in] dt time step
-             * @return expected measurement
-             * @details explanation reference (1): https://github.com/artivis/manif/blob/devel/docs/explanation/autodiff.md
-             *          explanation reference (2): explanation/model.md
-             *          API reference: https://github.com/artivis/manif/blob/devel/include/manif/impl/lie_group_base.h#L184
              */
-            Measurement autoCompute(const State &x, Eigen::Ref<MeasJacobian> H, Eigen::Ref<NoiseJacobian> Hw, const Scalar &dt) const
+            Measurement compute(const State &x, const double &dt) const
             {
-                return static_cast<const Derived *>(this)->autoComputeImpl(x, H, Hw, dt);
+                return static_cast<const Derived *>(this)->measureImpl(x, dt);
             }
 
             /***
-             * @brief compute the measurement jacobian (H)
-             * @param x current state
-             * @param dt time step
-             * @return measurement jacobian matrix
+             * @brief compute jacobians of the measurement model
+             * @param[in] x current state
+             * @param[in] dt time step
+             * @return measurement jacobian and noise jacobian
              */
-            MeasJacobian computeMeasJacobian(const State &x, const Scalar &dt) const
+            auto computeJacobians(const State &x, const double &dt) -> std::tuple<MeasJacobian, NoiseJacobian>
             {
-                return static_cast<const Derived *>(this)->computeMeasJacobianImpl(x, dt);
-            }
-
-            /***
-             * @brief compute the measurement noise jacobian (H_w)
-             * @param x current state
-             * @param dt time step
-             * @return measurement noise jacobian matrix
-             */
-            NoiseJacobian computeNoiseJacobian(const State &x, const Scalar &dt) const
-            {
-                return static_cast<const Derived *>(this)->computeNoiseJacobianImpl(x, dt);
+                return static_cast<const Derived *>(this)->computeJacobiansImpl(x, dt);
             }
 
         protected:

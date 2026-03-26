@@ -16,6 +16,7 @@
 #define SOLUTION__BASE_KF_HPP
 
 // C++ standard library
+#include <array>
 #include <concepts>
 #include <type_traits>
 #include <utility>
@@ -28,7 +29,7 @@
 #include "eststack/eigen_traits.hpp"
 
 /***
- * @brief An algorithm set focus on estimation and filtering
+ * @brief An algorithm set focus on state estimation
  * @author jinhua "siyiovo" deng
  */
 namespace eststack
@@ -38,6 +39,46 @@ namespace eststack
      */
     namespace solution
     {
+        /***
+         * @brief compile-time 95% confidence chi-square critical values table
+         * @details include DoF of 1-9
+         */
+        struct ChiSquareTable
+        {
+            /***
+             * @brief get critical value for given DoF
+             * @tparam DoF degrees of freedom
+             * @return chi-square critical value at 95% confidence
+             */
+            template <int DoF>
+            static consteval double value()
+            {
+                static_assert(DoF >= 1 && DoF <= 9, "DoF must be in [1, 9] for built-in table");
+                constexpr std::array<double, 9> table = {
+                    3.841,
+                    5.991,
+                    7.815,
+                    9.488,
+                    11.070,
+                    12.592,
+                    14.067,
+                    15.507,
+                    16.919};
+                return table[DoF - 1];
+            }
+        };
+
+        /***
+         * @brief update result struct
+         * @param converge whether the filter converges after update step
+         * @param metric convergence metric
+         */
+        struct result_t
+        {
+            bool converge{false};
+            double metric{0.0};
+        };
+
         /***
          * @brief base class for Kalman filter
          * @tparam Derived derived kalman filter class
@@ -49,10 +90,12 @@ namespace eststack
         {
         public:
             using State = StateT;
+            using Scalar = typename State::Scalar;
             using StateCovariance = eststack::Covariance<State>;
 
             /***
              * @brief set state vector
+             * @param state state vector
              */
             void setState(const State &state) noexcept
             {
@@ -69,10 +112,11 @@ namespace eststack
 
             /***
              * @brief set state covariance matrix
+             * @param cov state covariance matrix
              */
-            void setStateCovariance(const StateCovariance &cov) noexcept
+            void setStateCovariance(const Eigen::Ref<const StateCovariance> &cov) noexcept
             {
-                assert(isCovariance(cov));
+                static_assert(isCovariance(cov), "The state covariance matrix must be positive semi-definite!");
                 P_ = cov;
             }
 
@@ -93,25 +137,28 @@ namespace eststack
              * @param u control input vector
              * @param args additional arguments
              */
-            template <typename TransitionModel, typename ControlInput, typename... Args>
-            bool predict(const TransitionModel &F, const ControlInput &u, Args &&...args)
+            template <typename TransitionModel, typename ControlInput, typename ProcessNoise, typename... Args>
+            bool predict(const TransitionModel &model, const ControlInput &u, const ProcessNoise &Q, Args &&...args)
             {
-                return static_cast<Derived *>(this)->predictImpl(F, u, std::forward<Args>(args)...);
+                return static_cast<Derived *>(this)->predictImpl(model, u, Q, std::forward<Args>(args)...);
             }
 
             /***
              * @brief update step
              * @tparam MeasurementModel measurement model
              * @tparam Measurement measurement vector
-             * @tparam Args additional arguments, e.g. bias or white noise, etc.
-             * @param H measurement matrix
+             * @tparam MeasNoise measurement noise covariance
+             * @tparam Args additional arguments
+             * @param model measurement model
              * @param z measurement vector
+             * @param R measurement noise covariance
              * @param args additional arguments
+             * @return result_t with converge flag and metric (NIS if Dim < 10)
              */
-            template <typename MeasurementModel, typename Measurement, typename... Args>
-            bool update(const MeasurementModel &H, const Measurement &z, Args &&...args)
+            template <typename MeasurementModel, typename Measurement, typename MeasNoise, typename... Args>
+            result_t update(const MeasurementModel &model, const Measurement &z, const MeasNoise &R, Args &&...args)
             {
-                return static_cast<Derived *>(this)->updateImpl(H, z, std::forward<Args>(args)...);
+                return static_cast<Derived *>(this)->updateImpl(model, z, R, std::forward<Args>(args)...);
             }
 
         protected:

@@ -20,6 +20,7 @@
 #include <type_traits>
 #include <utility>
 #include <memory>
+#include <exception>
 
 /***
  * @brief An algorithm set focus on estimation and filtering
@@ -41,18 +42,23 @@ namespace eststack
         concept EstProblem = requires(T prob) {
             { prob.isInitialized() } -> std::convertible_to<bool>;
             { prob.setSolution(std::declval<typename T::Solution>()) } -> std::same_as<void>;
+            { prob.isOK() } -> std::same_as<bool>;
+            { prob.run() } -> std::same_as<bool>;
         };
 
         /***
          * @brief base class for estimation problems
          * @tparam Derived problem class
+         * @tparam StateT state type
          * @tparam SolutionT solution type
          */
-        template <typename Derived, typename SolutionT>
+        template <typename Derived, typename StateT, typename SolutionT>
         class BaseProblem
         {
         public:
+            using State = StateT;
             using Solution = SolutionT;
+
             /***
              * @brief check if the problem has been initialized
              */
@@ -62,13 +68,42 @@ namespace eststack
             }
 
             /***
+             * @brief get state
+             */
+            const State &getState() const noexcept
+            {
+                return state_;
+            }
+
+            /***
+             * @brief set state
+             * @param state state
+             */
+            void setState(const State &state) noexcept
+            {
+                state_ = state;
+            }
+
+            /***
              * @brief set specific solution of the problem
+             * @param sol solution
              */
             void setSolution(SolutionT &&sol)
             {
                 solution_ = std::make_unique<SolutionT>(std::forward<SolutionT>(sol));
                 static_cast<Derived *>(this)->setSolutionImpl(solution_.get());
                 initialized_ = true;
+            }
+
+            /***
+             * @brief run to solve the problem
+             */
+            bool run()
+            {
+                if (!isInitialized())
+                    throw std::runtime_error("problem is not initialized!");
+
+                return static_cast<Derived *>(this)->runImpl();
             }
 
         protected:
@@ -78,14 +113,24 @@ namespace eststack
             BaseProblem() = default;
 
             /***
-             * @brief initialization flag
+             * @brief state vector
              */
-            bool initialized_ = false;
+            State state_;
 
             /***
              * @brief the solution of the problem
              */
-            std::unique_ptr<SolutionT> solution_;
+            std::unique_ptr<Solution> solution_;
+
+            /***
+             * @brief initialization flag
+             */
+            bool initialized_{false};
+
+            /***
+             * @brief OK flag
+             */
+            bool ok_{false};
         };
 
     } // namespace problem

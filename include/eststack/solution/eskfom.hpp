@@ -16,15 +16,15 @@
 #define SOLUTION__ESKFOM_HPP
 
 // Eigen library
+#include <Eigen/Cholesky>
 #include <Eigen/Dense>
 
 // ESTstack library
 #include "eststack/solution/base_kf.hpp"
 #include "eststack/model/base_model.hpp"
-#include "eststack/types.hpp"
 
 /***
- * @brief An algorithm set focus on estimation and filtering
+ * @brief An algorithm set focus on state estimation
  * @author jinhua "siyiovo" deng
  */
 namespace eststack
@@ -37,20 +37,20 @@ namespace eststack
         /***
          * @brief error state Kalman filter on manifold
          * @tparam StateT state type
-         * @tparam P perturbation convention
          * @details according to (Li and Mourikis, 2012), global perturbation is more consistent with the state definition
          *          which transition matrix is more clear, here we use local perturbation as default
          * @note local perturbation on manifold as default
          */
-        template <eststack::model::LieGroupState StateT,
-                  eststack::Perturbation P = eststack::Perturbation::Local>
-        class ESKFOM : public BaseKF<ESKFOM<StateT, P>, StateT>
+        template <eststack::model::LieGroupState StateT>
+        class ESKFOM : public BaseKF<ESKFOM<StateT>, StateT>
         {
         public:
             EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-            using Base = BaseKF<ESKFOM<StateT, P>, StateT>;
+            using Base = BaseKF<ESKFOM<StateT>, StateT>;
             using State = typename Base::State;
+            using Scalar = typename State::Scalar;
+            using Tangent = typename State::Tangent;
             using StateCovariance = typename Base::StateCovariance;
 
             using Ptr = std::shared_ptr<ESKFOM>;
@@ -59,7 +59,7 @@ namespace eststack
             /***
              * @brief default constructor
              */
-            ESKFOM(const State &x0, const StateCovariance &P0)
+            ESKFOM(const State &x0, const Eigen::Ref<const StateCovariance> &P0)
             {
                 this->setState(x0);
                 this->setStateCovariance(P0);
@@ -70,50 +70,26 @@ namespace eststack
              * @param model transition model providing Fx and Fw
              * @param u     control input
              * @param Q     process noise covariance
-             * @param args  reserved for future extensions
+             * @param dt    time step
              */
             template <eststack::model::TransitionModel TransitionModel, typename... Args>
             bool predictImpl(const TransitionModel &model,
                              const typename TransitionModel::ControlInput &u,
                              const typename TransitionModel::ProcessNoise &Q,
-                             Args &&...args)
+                             const double &dt)
             {
-                /***
-                 * by default, `manif` and model class provide Jacobians derived
-                 * under local perturbation convention: x(k+1) = x(k) ⊕ δx_l
-                 * So computeStateJacobian() returns F_raw = F_l
-                 * When going to global perturbation, the error state is defined as:
-                 * δx_g = Adj(x) δx_l. We can convert the local transition matrix F_l to global F_g:
-                 * δx_l(k+1) = F_l * δx_l(k)
-                 * Adj(x(k+1))^{-1} * δx_g(k+1) = F_l * Adj(x(k))^{-1} * δx_g(k) + F_{w,l} * w
-                 * => δx_g(k+1) = [Adj(x(k+1)) * F_l * Adj(x(k))^{-1}] * δx_g(k) + [Adj(x(k+1)) * F_{w,l}] * w
-                 */
-                const auto Fx_raw = model.computeStateJacobian(this->x_, u);
-                const auto Fw_raw = model.computeNoiseJacobian(this->x_, u);
+                const Tangent tau = model.compute(this->x_, u, dt);
+                const auto [J_tau_dx, J_tau_i] = model.computeJacobians(this->x_, u, dt);
 
-                const State priori_x = model.compute(this->x_, u);
+                typename TransitionModel::StateJacobian J_x, J_u, Fx;
+                this->x_ = this->x_.rplus(tau, J_x, J_u);
 
-                const auto Fx = [&]() -> StateCovariance
-                {
-                    if constexpr (P == eststack::Perturbation::Global)
-                        return (priori_x.adj() * Fx_raw * this->x_.inverse().adj()).eval();
-                    else
-                        return Fx_raw;
-                }();
-
-                const auto Fw = [&]()
-                {
-                    if constexpr (P == eststack::Perturbation::Global)
-                        return (priori_x.adj() * Fw_raw).eval();
-                    else
-                        return Fw_raw;
-                }();
-
-                this->x_ = priori_x;
+                Fx.noalias() = (J_x + J_u * J_tau_dx).eval();
+                const auto Fi = (J_u * J_tau_i).eval();
 
                 this->P_ = Fx * this->P_ * Fx.transpose();
                 /* noalias() can fasten matrix operation while elements in LHS do not appear in RHS */
-                (this->P_).noalias() += Fw * Q * Fw.transpose();
+                (this->P_).noalias() += Fi * Q * Fi.transpose();
 
                 return true;
             }
@@ -123,52 +99,42 @@ namespace eststack
              * @param model measurement model providing H, H_w
              * @param z     measurement vector
              * @param R     measurement noise covariance
-             * @param args  reserved for future extensions
+             * @param dt    time step
              */
             template <eststack::model::MeasurementModel MeasurementModel, typename... Args>
-            bool updateImpl(const MeasurementModel &model,
-                            const typename MeasurementModel::Measurement &z,
-                            const typename MeasurementModel::MeasNoise &R,
-                            Args &&...args)
+            result_t updateImpl(const MeasurementModel &model,
+                                const typename MeasurementModel::Measurement &z,
+                                const typename MeasurementModel::MeasNoise &R, const double &dt)
             {
-                /***
-                 * similar to predict(), computeMeasJacobian() provides the raw measurement Jacobian
-                 * H_raw = H_l derived under Local perturbation
-                 * For Global perturbation, applying the relation δx_l = Adj(x)^{-1} δx_g:
-                 * y = H_l * δx_l + R = H_l * Adj(x)^{-1} * δx_g + R
-                 * => H_g = H_l * Adj(x)^{-1}
-                 */
-                const auto H_raw = model.computeMeasJacobian(this->x_);
-                const auto Hw = model.computeNoiseJacobian(this->x_);
-                const auto H = [&]()
-                {
-                    if constexpr (P == eststack::Perturbation::Global)
-                        return (H_raw * this->x_.inverse().adj()).eval();
-                    else
-                        return H_raw;
-                }();
+                const auto z_pred = model.compute(this->x_, dt);
+                /* PLEASE refer to explanation/model.md to figure out how to compute H */
+                const auto [H, Hv] = model.computeJacobians(this->x_, dt);
 
-                const auto y = (z - model.compute(this->x_)).eval();
+                /* innovation */
+                const auto inno = (z - z_pred).eval();
+                /* innovation covariance */
+                const auto S = (H * this->P_ * H.transpose() + Hv * R * Hv.transpose()).eval();
 
                 /***
-                 * standard kalman gain is defined as K = PHT(HPHT + HwRHwT)^{-1}
-                 * if measurement dimension >> state dimension (threshold is 6x here), (HPHT+R) is hard to get inverse matrix
+                 * standard kalman gain is defined as K = PHT(HPHT + HvRHvT)^{-1}
+                 * if measurement dimension >> state dimension (threshold is 3 times here), (HPHT+R) is hard to get inverse matrix
                  * we can use SMW equation, a.k.a. matrix inversion lemma (please refer to chapter 2.2.15, [3])
-                 * to get K = (P^{-1} + HT(HwRHw)^{-1} H)^{-1} HT(HwRHwT)^{-1} faster
+                 * to get K = (P^{-1} + HT(HvRHv)^{-1} H)^{-1} HT(HvRHvT)^{-1} faster
                  */
+                constexpr int StateDim = State::DoF;
                 constexpr int MeasDim = MeasurementModel::MeasJacobian::RowsAtCompileTime;
-                constexpr int StateDim = static_cast<int>(State::DoF);
+
                 const auto K = [&]()
                 {
-                    if constexpr (MeasDim > 6 * StateDim)
+                    if constexpr (MeasDim >= 3 * StateDim)
                     {
                         /* inverse matrix of full-state measurement covariance */
-                        const auto full_R_inv = (Hw * R * Hw.transpose()).inverse().eval();
+                        const auto full_R_inv = (Hv * R * Hv.transpose()).inverse().eval();
                         return ((this->P_.inverse() + H.transpose() * full_R_inv * H).inverse() * H.transpose() * full_R_inv).eval();
                     }
                     else
                     {
-                        const auto S_inv = (H * this->P_ * H.transpose() + Hw * R * Hw.transpose()).inverse().eval();
+                        const auto S_inv = S.inverse().eval();
                         return (this->P_ * H.transpose() * S_inv).eval();
                     }
                 }();
@@ -178,36 +144,35 @@ namespace eststack
                  * NOTE that dx is a random variable (discretize to sequence),
                  * `dx` represents its expectation in injection and reset operations
                  */
-                const typename State::Tangent dx(K * y);
-                if constexpr (P == eststack::Perturbation::Global)
-                    this->x_ = this->x_.lplus(dx);
-                else
-                    this->x_ = this->x_.rplus(dx);
+                const Tangent tau(K * inno);
+                this->x_ = this->x_.rplus(tau);
 
                 /* Joseph form covariance to keep `P_` positive semi-definite and symmetric */
                 const StateCovariance IKH = StateCovariance::Identity() - K * H;
-                const auto KHwRHwTKT = (K * Hw * R * Hw.transpose() * K.transpose()).eval();
+                const auto J = (K * Hv * R * Hv.transpose() * K.transpose()).eval();
 
                 this->P_ = IKH * this->P_ * IKH.transpose();
-                (this->P_).noalias() += KHwRHwTKT;
+                (this->P_).noalias() += J;
 
                 /***
-                 * last thing is reset expectation and covariance of error state
+                 * reset expectation and covariance of error state
                  * about why wedge operator could be replaced by small adjoint a.k.a. lie algebra adjoint, please refer to explanation/eskfom.md
                  */
-                const auto Ix = Eigen::Matrix<typename State::Scalar, StateDim, StateDim>::Identity();
-                if constexpr (P == eststack::Perturbation::Global)
-                {
-                    const auto G = Ix + (0.5 * dx.smallAdj());
-                    this->P_ = G * this->P_ * G.transpose();
-                }
-                else
-                {
-                    const auto G = Ix - (0.5 * dx.smallAdj());
-                    this->P_ = G * this->P_ * G.transpose();
-                }
+                const auto Ix = Eigen::Matrix<Scalar, StateDim, StateDim>::Identity();
+                const auto G = Ix - (0.5 * tau.smallAdj());
+                this->P_ = G * this->P_ * G.transpose();
 
-                return true;
+                /* last thing is check whether converge via NIS */
+                if constexpr (MeasDim < 10)
+                {
+                    const double nis = inno.transpose() * S.ldlt().solve(inno);
+                    const bool converge = nis < ChiSquareTable::value<MeasDim>();
+                    return {converge, nis};
+                }
+                else /* if measurement dimension is too high, did not calculate NIS */
+                {
+                    return {true, 0.0};
+                }
             }
         };
     }

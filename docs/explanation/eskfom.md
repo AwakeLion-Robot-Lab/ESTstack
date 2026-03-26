@@ -1,5 +1,9 @@
 # ESKFOM Explanation
 
+## Perturbation Convention
+
+I just use right(local)-perturbation as same as [4] and [7], but left(global)-perturbation maybe more efficiency according to (Li and Mourikis, 2012).
+
 ## Reset Jacobian Derivation
 
 we need some tricks about lie bracket $[\cdot,\cdot]$ to derive how small adjoint related to wedge mapping, here provides derivation in $\boldsymbol{SO}(3)$:
