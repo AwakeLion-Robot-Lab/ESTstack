@@ -24,6 +24,7 @@ end
 add_repositories("awakelion-xmake-repo https://github.com/AwakeLion-Robot-Lab/awakelion-xmake-repo.git")
 add_requires("eigen 5.0.0", "pcl 1.15.1", "manif 0.0.5")
 add_requires("backward-cpp v1.6","awakelion-logger 1.0.2")
+add_requires("tbb", {system = true})                                          
 add_requireconfs("manif.eigen", {override = true})  -- use eigen from xmake package
 
 namespace("fosu-awakelion")
@@ -33,7 +34,7 @@ namespace("fosu-awakelion")
         add_headerfiles("include/eststack/**/*.hpp", {public = true})
 
         -- dependencies
-        add_packages("eigen", "pcl", "manif", "backward-cpp", "awakelion-logger", {public = true})
+        add_packages("eigen", "pcl", "manif", "backward-cpp", "awakelion-logger", "tbb", {public = true})
 
     if has_config("test") then
         for _, file in ipairs(os.files("test/*.cpp")) do

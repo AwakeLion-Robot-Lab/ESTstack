@@ -50,9 +50,9 @@ namespace eststack
         class SingleArmor : public BaseTransitionModel<SingleArmor>
         {
         public:
-            using State = manif::Bundle<double, manif::SO2, manif::R8>;
+            using State = manif::Bundle<double, manif::SO2, manif::R7>;
             using ControlInput = Eigen::Vector4d;
-            using ProcessNoise = Eigen::Vector<double, 4>;
+            using ProcessNoise = Eigen::Vector4d;
 
             [[deprecated]]
             State autoComputeImpl(const State &x, const ControlInput &u,

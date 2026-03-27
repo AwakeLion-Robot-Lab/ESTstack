@@ -73,9 +73,21 @@ namespace eststack
          * @param converge whether the filter converges after update step
          * @param metric convergence metric
          */
-        struct result_t
+        struct UpdateResult
         {
+            explicit operator bool() const noexcept
+            {
+                return converge;
+            }
+
+            /***
+             * @brief convergence flag
+             */
             bool converge{false};
+
+            /***
+             * @brief convergence metric, e.g. NIS value
+             */
             double metric{0.0};
         };
 

@@ -127,7 +127,7 @@ namespace eststack
              * @param[in] dt time step
              * @return priori state
              * @details explanation reference (1): https://github.com/artivis/manif/blob/devel/docs/explanation/autodiff.md
-             *          explanation reference (2): explanation/model.md
+             *          explanation reference (2): docs/explanation/model.md
              */
             State autoCompute(const State &x, const ControlInput &u,
                               Eigen::Ref<StateJacobian> Fx, Eigen::Ref<NoiseJacobian> Fw, const double &dt) const
@@ -191,7 +191,7 @@ namespace eststack
              */
             Measurement compute(const State &x, const double &dt) const
             {
-                return static_cast<const Derived *>(this)->measureImpl(x, dt);
+                return static_cast<const Derived *>(this)->computeImpl(x, dt);
             }
 
             /***

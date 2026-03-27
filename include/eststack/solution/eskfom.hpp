@@ -107,12 +107,12 @@ namespace eststack
                                 const typename MeasurementModel::MeasNoise &R, const double &dt)
             {
                 const auto z_pred = model.compute(this->x_, dt);
-                /* PLEASE refer to explanation/model.md to figure out how to compute H */
+                /* PLEASE refer to docs/explanation/model.md to figure out how to compute H */
                 const auto [H, Hv] = model.computeJacobians(this->x_, dt);
 
-                /* innovation */
+                /* priori innovation */
                 const auto inno = (z - z_pred).eval();
-                /* innovation covariance */
+                /* priori innovation covariance */
                 const auto S = (H * this->P_ * H.transpose() + Hv * R * Hv.transpose()).eval();
 
                 /***
@@ -141,8 +141,8 @@ namespace eststack
 
                 /***
                  * compute error state and inject to nominal state
-                 * NOTE that dx is a random variable (discretize to sequence),
-                 * `dx` represents its expectation in injection and reset operations
+                 * NOTE that `tau` is a random variable (discretize to sequence),
+                 * `tau` represents its expectation in injection and reset operations
                  */
                 const Tangent tau(K * inno);
                 this->x_ = this->x_.rplus(tau);
@@ -165,6 +165,10 @@ namespace eststack
                 /* last thing is check whether converge via NIS */
                 if constexpr (MeasDim < 10)
                 {
+                    /***
+                     * NOTE that we can use priori state N(x-, P-) at this point instead of batch estimation N(x+, P+) from all measurements
+                     * details can be found in [3], chapter 5.1.2, page 149
+                     */
                     const double nis = inno.transpose() * S.ldlt().solve(inno);
                     const bool converge = nis < ChiSquareTable::value<MeasDim>();
                     return {converge, nis};

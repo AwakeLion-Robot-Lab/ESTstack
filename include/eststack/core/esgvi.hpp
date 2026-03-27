@@ -12,13 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef CORE__BAR_ITZHACK_HPP
-#define CORE__BAR_ITZHACK_HPP
+#ifndef CORE__ESGVI_HPP
+#define CORE__ESGVI_HPP
 
 // Eigen library
 #include <Eigen/Dense>
-#include <Eigen/LU>
-#include <Eigen/SVD>
 
 /***
  * @brief An algorithm set focus on state estimation
@@ -27,19 +25,26 @@
 namespace eststack
 {
     /***
-     * @brief core algorithms for state estimation
+     * @brief core algorithms for estimation
      */
     namespace core
     {
         /***
-         * @brief Bar-Itzhack's method to extract DCM (even not orthogonal) to quaternion
-         * @param dcm direction cosine matrix
-         * @return quaternion representation
+         * @brief exactly sparse gaussian variational inference class
+         * @details ESGVI for adaptive noise covariance estimation of KF
          */
-        Eigen::Quaterniond bar_itzhack(const Eigen::Matrix3d &dcm)
+        class ESGVI
         {
-        }
+        public:
+            EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+            /**
+             * @brief default constructor
+             */
+            ESGVI() = default;
+        };
+
     }
 }
 
-#endif //! CORE__BAR_ITZHACK_HPP
+#endif //! CORE__ESGVI_HPP
