@@ -55,6 +55,7 @@ namespace eststack
 
             using Ptr = std::shared_ptr<ESKFOM>;
             using ConstPtr = std::shared_ptr<const ESKFOM>;
+            using UpdateResult = typename Base::UpdateResult;
 
             /***
              * @brief default constructor
@@ -102,9 +103,9 @@ namespace eststack
              * @param dt    time step
              */
             template <eststack::model::MeasurementModel MeasurementModel, typename... Args>
-            result_t updateImpl(const MeasurementModel &model,
-                                const typename MeasurementModel::Measurement &z,
-                                const typename MeasurementModel::MeasNoise &R, const double &dt)
+            UpdateResult updateImpl(const MeasurementModel &model,
+                                    const typename MeasurementModel::Measurement &z,
+                                    const typename MeasurementModel::MeasNoise &R, const double &dt)
             {
                 const auto z_pred = model.compute(this->x_, dt);
                 /* PLEASE refer to docs/explanation/model.md to figure out how to compute H */
@@ -167,7 +168,7 @@ namespace eststack
                 {
                     /***
                      * NOTE that we can use priori state N(x-, P-) at this point instead of batch estimation N(x+, P+) from all measurements
-                     * details can be found in [3], chapter 5.1.2, page 149
+                     * details can be found in [3], chapter 5.1.2
                      */
                     const double nis = inno.transpose() * S.ldlt().solve(inno);
                     const bool converge = nis < ChiSquareTable::value<MeasDim>();

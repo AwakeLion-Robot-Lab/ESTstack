@@ -68,6 +68,16 @@ namespace eststack
         throw std::invalid_argument("Matrix is not symmetric!");
     }
 
+    template <typename Derived>
+    bool isOrthogonal(const Eigen::MatrixBase<Derived> &m,
+                      typename Derived::Scalar threshold = 1e-6)
+    {
+        if (m.rows() != m.cols())
+            throw std::invalid_argument("Matrix must be square to be checked!");
+
+        return (std::abs(m.determinant() - 1.0) < threshold) && (m.transpose() * m).isIdentity(threshold);
+    }
+
     /***
      * @brief get the condition number of a matrix via SVD
      * @note L-2 norm condition number

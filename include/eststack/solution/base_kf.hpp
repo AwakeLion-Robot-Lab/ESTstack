@@ -165,10 +165,10 @@ namespace eststack
              * @param z measurement vector
              * @param R measurement noise covariance
              * @param args additional arguments
-             * @return result_t with converge flag and metric (NIS if Dim < 10)
+             * @return converge flag and its metric
              */
             template <typename MeasurementModel, typename Measurement, typename MeasNoise, typename... Args>
-            result_t update(const MeasurementModel &model, const Measurement &z, const MeasNoise &R, Args &&...args)
+            UpdateResult update(const MeasurementModel &model, const Measurement &z, const MeasNoise &R, Args &&...args)
             {
                 return static_cast<Derived *>(this)->updateImpl(model, z, R, std::forward<Args>(args)...);
             }

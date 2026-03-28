@@ -2,26 +2,26 @@
 
 Main bibTeX references used in ESTstack. See per-algorithm explanation pages for detailed equation-level citations.
 
-| No.  | Key                      | Short description                                   |
-| ---- | ------------------------ | --------------------------------------------------- |
-| [1]  | wang2023bayesian         | 贝叶斯滤波重制版 (Bilibili)                         |
-| [2]  | zhang2024sdm366          | SDM366 — Optimal Control and Estimation (SUSTech)   |
-| [3]  | barfoot2024state         | State Estimation for Robotics, 2nd ed.              |
-| [4]  | sola2017quaternion       | Quaternion kinematics for the error-state KF        |
-| [5]  | sola2018micro            | A micro Lie theory for state estimation in robotics |
-| [6]  | blanco2010tutorial       | SE(3) transformation parameterizations tutorial     |
-| [7]  | qiu2019monocular         | Unbiased linear system model for VIO                |
-| [8]  | sola2021lie_video        | Lie theory for the roboticist (YouTube)             |
-| [9]  | hammarstrand_ssy345      | SSY345 — Sensor Fusion and Nonlinear Filtering      |
-| [10] | yuan2024btc              | BTC descriptor for 3D place recognition             |
-| [11] | shi2024ransac            | RANSAC two-stage consensus for 3D registration      |
-| [12] | ahrs_davenport           | Davenport's q-method (Wahba's problem)              |
-| [13] | bar_itzhack_2000         | Bar-Itzhack: Quaternion from Rotation Matrix        |
-| [14] | deray2020manif           | manif — C++ Lie group library                       |
-| [15] | deray2021kalmanif        | kalmanif — Kalman Filters on Lie groups             |
-| [16] | gao2024slam              | 自动驾驶与机器人中的SLAM技术                        |
-| [17] | wang2026superlio         | Super-LIO — robust LiDAR-Inertial Odometry          |
-| [18] | koide_hdl_global_loc     | hdl_global_localization — BBS for 3D LiDAR          |
+| No.  | Key                  | Short description                                   |
+| ---- | -------------------- | --------------------------------------------------- |
+| [1]  | wang2023bayesian     | 贝叶斯滤波重制版 (Bilibili)                         |
+| [2]  | zhang2024sdm366      | SDM366 — Optimal Control and Estimation (SUSTech)   |
+| [3]  | barfoot2024state     | State Estimation for Robotics, 2nd ed.              |
+| [4]  | sola2017quaternion   | Quaternion kinematics for the error-state KF        |
+| [5]  | sola2018micro        | A micro Lie theory for state estimation in robotics |
+| [6]  | blanco2010tutorial   | SE(3) transformation parameterizations tutorial     |
+| [7]  | qiu2019monocular     | Unbiased linear system model for VIO                |
+| [8]  | sola2021lie_video    | Lie theory for the roboticist (YouTube)             |
+| [9]  | hammarstrand_ssy345  | SSY345 — Sensor Fusion and Nonlinear Filtering      |
+| [10] | yuan2024btc          | BTC descriptor for 3D place recognition             |
+| [11] | shi2024ransac        | RANSAC two-stage consensus for 3D registration      |
+| [12] | sarabandi2019        | Sarabandi: Accurate DCM to quaternion               |
+| [13] | ahrs_davenport       | Davenport's q-method (Wahba's problem)              |
+| [14] | bar-itzhack2000      | Bar-Itzhack: Quaternion from Rotation Matrix        |
+| [15] | deray2020manif       | manif — C++ Lie group library                       |
+| [16] | deray2021kalmanif    | kalmanif — Kalman Filters on Lie groups             |
+| [17] | wang2022sfastlio     | S-FAST_LIO — LiDAR-Inertial Odometry                |
+| [18] | koide_hdl_global_loc | hdl_global_localization — BBS for 3D LiDAR          |
 
 ---
 
@@ -189,34 +189,49 @@ See also: [1], [9]
 
 ---
 
-## Bar-Itzhack
+## DCM to Quaternion 
 
 ```bibtex
-% [12] Davenport's q-method for solving Wahba's problem
+% [12]
+@incollection{sarabandiAccurateComputationQuaternions2019,
+  title = {Accurate Computation of Quaternions from Rotation Matrices},
+  author = {Sarabandi, Soheil and Thomas, Federico},
+  editor = {Lenarcic, Jadran and {Parenti-Castelli}, Vincenzo},
+  year = 2019,
+  volume = {8},
+  pages = {39--46},
+  publisher = {Springer International Publishing},
+  address = {Cham},
+  doi = {10.1007/978-3-319-93188-3_5},
+  isbn = {978-3-319-93187-6 978-3-319-93188-3},
+  langid = {american},
+}
+
+% [13]
 @misc{ahrs_davenport,
   title        = {Davenport's q-Method},
   author       = {{AHRS Documentation}},
   year         = {2024},
-  howpublished = {\url{https://ahrs.readthedocs.io/en/latest/filters/davenport.html}},
+  url          = {https://ahrs.readthedocs.io/en/latest/filters/davenport.html},
   note         = {Davenport's q-method: eigenvalue-based solution to Wahba's problem
                   for finding optimal rotation from vector observations}
 }
 
-% [13] Bar-Itzhack algorithm for quaternion extraction from rotation matrix
-@article{bar_itzhack_2000,
-  title     = {New Method for Extracting the Quaternion from a Rotation Matrix},
-  author    = {Bar-Itzhack, Itzhack Y.},
-  journal   = {Journal of Guidance, Control, and Dynamics},
-  volume    = {23},
-  number    = {6},
-  pages     = {1085--1087},
-  year      = {2000},
-  publisher = {American Institute of Aeronautics and Astronautics},
-  doi       = {10.2514/2.4654},
-  url       = {https://arc.aiaa.org/doi/abs/10.2514/2.4654},
-  note      = {Three versions for orthogonal/non-orthogonal matrices;
-               eigenvector of K matrix yields the sought quaternion}
+% [14]
+@article{bar-itzhackNewMethodExtracting2000,
+  title = {New Method for Extracting the Quaternion from a Rotation Matrix},
+  author = {{Bar-Itzhack}, Itzhack Y.},
+  year = 2000,
+  month = nov,
+  journal = {Journal of Guidance, Control, and Dynamics},
+  volume = {23},
+  number = {6},
+  pages = {1085--1087},
+  issn = {0731-5090, 1533-3884},
+  doi = {10.2514/2.4654},
+  langid = {english},
 }
+
 ```
 
 ---
@@ -224,7 +239,7 @@ See also: [1], [9]
 ## Code Refinement
 
 ```bibtex
-% [14]
+% [15]
 @article{deray2020manif,
   title   = {manif: A small header-only library for {L}ie theory},
   author  = {Deray, Jeremie and Sol{\`a}, Joan},
@@ -238,7 +253,7 @@ See also: [1], [9]
              automatic Jacobians via plus/minus}
 }
 
-% [15]
+% [16]
 @misc{deray2021kalmanif,
   title   = {kalmanif: A small collection of {K}alman Filters on {L}ie groups},
   author  = {Deray, Jeremie},
@@ -248,35 +263,22 @@ See also: [1], [9]
              SE_2(3) IMU strap-down ESKF reference (demo\_se\_2\_3.cpp)}
 }
 
-% [16]
-@book{gao2024slam,
-  title     = {自动驾驶与机器人中的{SLAM}技术},
-  author    = {高翔},
-  publisher = {电子工业出版社},
-  year      = {2024},
-  isbn      = {978-7-121-45878-1},
-  note      = {Covers LiDAR/visual SLAM, Kalman filtering, graph optimization,
-               and point cloud registration with modern C++ implementation}
-}
-
 % [17]
-@article{wang2026superlio,
-  title   = {Super-LIO: A Robust and Efficient LiDAR-Inertial Odometry System with a Compact Mapping Strategy},
-  author  = {Wang, Liansheng and Zhang, Xinke and Li, Chenhui and He, Dongjiao and Pan, Yihan and Yi, Jianjun},
-  journal = {IEEE Robotics and Automation Letters},
-  year    = {2026},
-  volume  = {11},
-  number  = {3},
-  pages   = {2666--2673},
-  doi     = {10.1109/LRA.2026.3653372}
+@misc{wang2022sfastlio,
+  title        = {{S-FAST\_LIO}: A Resource-Efficient LiDAR-Inertial Odometry System},
+  author       = {zlwang7},
+  year         = {2022},
+  url          = {https://github.com/zlwang7/S-FAST_LIO},
+  note         = {Fast and efficient LiDAR-Inertial odometry with ikd-tree
+                  and feature extraction optimization}
 }
 
-% [18] Fast global localization using BBS (Branch-and-Bound Scan matching)
+% [18]
 @misc{koide_hdl_global_localization,
   title        = {hdl_global_localization},
   author       = {Koide, Kenji},
   year         = {2020},
-  howpublished = {\url{https://github.com/koide3/hdl_global_localization}},
+  url          = {https://github.com/koide3/hdl_global_localization},
   note         = {Fast global localization with BBS (Branch-and-Bound Scan matching),
                   point-to-distribution-based branch-and-bound for 3D LiDAR localization}
 }

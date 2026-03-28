@@ -44,7 +44,8 @@ namespace eststack
          * @param target target point cloud
          * @return transformation from source to target
          */
-        Eigen::Matrix4d kabsch(const pcl::PointCloud<pcl::PointXYZ>::Ptr &source, const pcl::PointCloud<pcl::PointXYZ>::Ptr &target)
+        Eigen::Matrix4d kabsch(const pcl::PointCloud<pcl::PointXYZ>::Ptr &source,
+                               const pcl::PointCloud<pcl::PointXYZ>::Ptr &target)
         {
             const size_t N = source->size();
             if (N == 0)
