@@ -15,6 +15,9 @@
 #ifndef SOLUTION__SUKFOM_HPP
 #define SOLUTION__SUKFOM_HPP
 
+// C++ standard library
+#include <memory>
+
 // Eigen library
 #include <Eigen/Dense>
 
@@ -34,7 +37,7 @@ namespace eststack
     namespace solution
     {
         /***
-         * @brief scaled unscented Kalman filter on (parallelizable) manifold
+         * @brief Scaled Unscented Kalman Filter On (parallelizable) Manifold
          */
         template <eststack::model::LieGroupState StateT>
         class SUKFOM : public BaseKF<SUKFOM<StateT>, StateT>
@@ -42,8 +45,13 @@ namespace eststack
         public:
             using Base = BaseKF<SUKFOM<StateT>, StateT>;
             using State = typename Base::State;
-            using Scalar = typename Base::Scalar;
-            using Covariance = typename Base::Covariance;
+            using Scalar = typename State::Scalar;
+            using Tangent = typename State::Tangent;
+            using StateCovariance = typename Base::StateCovariance;
+            using UpdateResult = typename Base::UpdateResult;
+
+            using Ptr = std::shared_ptr<SUKFOM>;
+            using ConstPtr = std::shared_ptr<const SUKFOM>;
         };
     }
 }

@@ -24,7 +24,7 @@
 #include <pcl/point_cloud.h>
 #include <pcl/common/centroid.h>
 
-// TBB library
+// oneTBB library
 #include <oneapi/tbb.h>
 
 /***
@@ -65,7 +65,7 @@ namespace eststack
             tbb::combinable<Eigen::Matrix3d> cov([]
                                                  { return Eigen::Matrix3d::Zero(); });
             tbb::parallel_for(
-                tbb::blocked_range<size_t>(0, N, 256),
+                tbb::blocked_range<size_t>(0, N, 1024),
                 [&](const tbb::blocked_range<size_t> &r)
                 {
                     Eigen::Matrix3d &local_H = cov.local();

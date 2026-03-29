@@ -30,7 +30,7 @@ namespace eststack
     namespace core
     {
         /***
-         * @brief exactly sparse gaussian variational inference class
+         * @brief Exactly Sparse Gaussian Variational Inference for parameter estimation
          * @details ESGVI for adaptive noise covariance estimation of KF
          */
         class ESGVI

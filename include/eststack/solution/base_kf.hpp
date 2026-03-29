@@ -92,7 +92,7 @@ namespace eststack
         };
 
         /***
-         * @brief base class for Kalman filter
+         * @brief base class for kalman filter
          * @tparam Derived derived kalman filter class
          * @tparam StateT state type used by the filter
          * @details CRTP design for compile-time polymorphism, which is more efficient and flexible

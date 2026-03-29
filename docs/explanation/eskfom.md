@@ -3,6 +3,7 @@
 ## Perturbation Convention
 
 I just use right(local)-perturbation as same as [4] and [7], but left(global)-perturbation maybe more efficiency according to (Li and Mourikis, 2012).
+In fact, i've tried combining two kinds of perturbation before via a template named `template<typename Perturbation = eststack::Perturbation::Right>`, but it's too annoying for appropriate coding :< and unnecessary, but you have to focus on left/right invariant and equivariant properties of lie group.
 
 ## Reset Jacobian Derivation
 

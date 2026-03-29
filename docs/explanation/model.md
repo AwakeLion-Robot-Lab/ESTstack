@@ -83,9 +83,9 @@ $$
 $$
 
 ```cpp
-// Chain rule
-Fx = J_x + J_u * d_tau_dx;
-Fw = J_u * J_tau_u;
+/* chain rule */
+Fx = J_x + J_u * J_tau_dx;
+Fw = J_u * J_tau_i;
 ```
 
 ### Measurement Model

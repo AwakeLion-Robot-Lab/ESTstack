@@ -15,8 +15,10 @@
 #ifndef SOLUTION__ESKFOM_HPP
 #define SOLUTION__ESKFOM_HPP
 
+// C++ standard library
+#include <memory>
+
 // Eigen library
-#include <Eigen/Cholesky>
 #include <Eigen/Dense>
 
 // ESTstack library
@@ -35,7 +37,7 @@ namespace eststack
     namespace solution
     {
         /***
-         * @brief error state Kalman filter on manifold
+         * @brief Error State Kalman Filter On Manifold
          * @tparam StateT state type
          * @details according to (Li and Mourikis, 2012), global perturbation is more consistent with the state definition
          *          which transition matrix is more clear, here we use local perturbation as default
@@ -52,10 +54,10 @@ namespace eststack
             using Scalar = typename State::Scalar;
             using Tangent = typename State::Tangent;
             using StateCovariance = typename Base::StateCovariance;
+            using UpdateResult = typename Base::UpdateResult;
 
             using Ptr = std::shared_ptr<ESKFOM>;
             using ConstPtr = std::shared_ptr<const ESKFOM>;
-            using UpdateResult = typename Base::UpdateResult;
 
             /***
              * @brief default constructor

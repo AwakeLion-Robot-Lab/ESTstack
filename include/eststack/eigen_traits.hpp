@@ -32,6 +32,8 @@ namespace eststack
 {
     /***
      * @brief check if a matrix is symmetric
+     * @param m the matrix to be checked
+     * @param threshold the threshold for checking symmetry
      */
     template <typename Derived>
     bool isSymmetric(const Eigen::MatrixBase<Derived> &m,
@@ -45,12 +47,13 @@ namespace eststack
 
     /***
      * @brief check if a symmetric matrix is positive semi-definite via Cholesky
+     * @param m the matrix to be checked
      */
     template <typename Derived>
     bool isPositiveDefinite(const Eigen::MatrixBase<Derived> &m)
     {
         if (m.rows() != m.cols())
-            throw std::invalid_argument("Matrix must be square to be checked!");
+            throw std::invalid_argument("Matrix is not square to be checked!");
 
         Eigen::LLT<Eigen::Matrix<typename Derived::Scalar, Derived::RowsAtCompileTime, Derived::ColsAtCompileTime>> llt(m);
         return llt.info() == Eigen::Success;
@@ -58,6 +61,8 @@ namespace eststack
 
     /***
      * @brief check if a matrix is a valid covariance
+     * @param m the matrix to be checked
+     * @param threshold the threshold for checking symmetry and positive-definiteness
      */
     template <typename Derived>
     bool isCovariance(const Eigen::MatrixBase<Derived> &m,
@@ -65,9 +70,15 @@ namespace eststack
     {
         if (isSymmetric(m, threshold))
             return isPositiveDefinite(m);
-        throw std::invalid_argument("Matrix is not symmetric!");
+
+        return false;
     }
 
+    /***
+     * @brief check if a matrix is orthogonal
+     * @param m the matrix to be checked
+     * @param threshold the threshold for checking orthogonality
+     */
     template <typename Derived>
     bool isOrthogonal(const Eigen::MatrixBase<Derived> &m,
                       typename Derived::Scalar threshold = 1e-6)
@@ -75,11 +86,29 @@ namespace eststack
         if (m.rows() != m.cols())
             throw std::invalid_argument("Matrix must be square to be checked!");
 
-        return (std::abs(m.determinant() - 1.0) < threshold) && (m.transpose() * m).isIdentity(threshold);
+        return (m.transpose() * m).isIdentity(threshold);
+    }
+
+    /***
+     * @brief check if a matrix is a valid rotation matrix
+     * @param m the matrix to be checked
+     * @param ortho_threshold the threshold for checking orthogonality
+     * @param det_threshold the threshold for checking determinant being 1
+     */
+    template <typename Derived>
+    bool isRotationMatrix(const Eigen::MatrixBase<Derived> &m,
+                          typename Derived::Scalar ortho_threshold = 1e-6,
+                          typename Derived::Scalar det_threshold = 1e-6)
+    {
+        if (isOrthogonal(m, ortho_threshold))
+            return (std::abs(m.determinant() - 1.0) < det_threshold);
+
+        return false;
     }
 
     /***
      * @brief get the condition number of a matrix via SVD
+     * @param m the matrix to be checked
      * @note L-2 norm condition number
      */
     template <typename Derived>

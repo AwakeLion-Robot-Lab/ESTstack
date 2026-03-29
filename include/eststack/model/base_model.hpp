@@ -15,13 +15,13 @@
 #ifndef MODEL__BASE_MODEL_HPP
 #define MODEL__BASE_MODEL_HPP
 
-// Eigen library
-#include <Eigen/Dense>
-
 // C++ standard library
 #include <concepts>
 #include <type_traits>
 #include <tuple>
+
+// Eigen library
+#include <Eigen/Dense>
 
 // eststack library
 #include "eststack/types.hpp"

@@ -18,6 +18,7 @@
 // C++ standard library
 #include <array>
 #include <cmath>
+#include <exception>
 
 // Eigen library
 #include <Eigen/Dense>
@@ -45,10 +46,20 @@ namespace eststack
          */
         Eigen::Quaterniond from_dcm(const Eigen::Matrix3d &dcm)
         {
-            if (isOrthogonal(dcm))
+            if (isRotationMatrix(dcm))
+            {
+                /* if DCM is a valid rotation matrix, use the fast method */
                 return sarabandi(dcm);
+            }
             else
+            {
+                /* if DCM is ill-conditioned seriously, just throw an error */
+                if (getConditionNumber(dcm) > 1e5)
+                    throw std::invalid_argument("DCM is too close to singular, cannot extract a reliable quaternion!");
+
+                /* if DCM is not orthogonal but well-conditioned, use the robust method */
                 return bar_itzhack(dcm);
+            }
         }
 
         /***
@@ -56,10 +67,10 @@ namespace eststack
          * @param dcm direction cosine matrix
          * @param eta threshold to decide whether to use the fast method or the robust method
          * @return best quaternion
-         * @details DCM MUST BE orthogonal, refer to [12] and https://github.com/Mayitzin/ahrs/blob/master/ahrs/common/orientation.py#L1117
+         * @details DCM MUST BE a valid rotation matrix, refer to [12] and https://github.com/Mayitzin/ahrs/blob/master/ahrs/common/orientation.py#L1117
          *          eta threshold selection can refer to docs/explanations/dcm_to_quat.md
          */
-        Eigen::Quaterniond sarabandi(const Eigen::Matrix3d &dcm, double eta = 0.0)
+        Eigen::Quaterniond sarabandi(const Eigen::Matrix3d &dcm, const double &eta = 0.0)
         {
             const double r11 = dcm(0, 0);
             const double r12 = dcm(0, 1);
@@ -137,7 +148,6 @@ namespace eststack
                 qy = -qy;
                 qz = -qz;
             }
-
             qx *= (r32 - r23 >= 0.0) ? 1.0 : -1.0;
             qy *= (r13 - r31 >= 0.0) ? 1.0 : -1.0;
             qz *= (r21 - r12 >= 0.0) ? 1.0 : -1.0;
@@ -178,24 +188,34 @@ namespace eststack
             Eigen::Matrix3d B = Eigen::Matrix3d::Zero();
             for (int i = 0; i < 3; ++i)
             {
-                B += weights[i] * vec_pairs[i].first * vec_pairs[i].second.transpose(); /* 3-dim tensor, not scalar */
+                B += weights[i] * vec_pairs[i].first * vec_pairs[i].second.transpose(); /* this is an 2nd-order and 3-dim tensor, not scalar! */
             }
 
             /* compute matrix K */
             const double sigma = B.trace();
-            const Eigen::Vector3d z(B(1, 2) - B(2, 1),
-                                    B(2, 0) - B(0, 2),
-                                    B(0, 1) - B(1, 0));
+            const double B00 = B(0, 0);
+            const double B01 = B(0, 1);
+            const double B02 = B(0, 2);
+            const double B10 = B(1, 0);
+            const double B11 = B(1, 1);
+            const double B12 = B(1, 2);
+            const double B20 = B(2, 0);
+            const double B21 = B(2, 1);
+            const double B22 = B(2, 2);
 
+            const Eigen::Vector3d z(B12 - B21,
+                                    B20 - B02,
+                                    B01 - B10);
             const double z0 = z(0);
             const double z1 = z(1);
             const double z2 = z(2);
-            const double s00 = 2.0 * B(0, 0) - sigma;
-            const double s11 = 2.0 * B(1, 1) - sigma;
-            const double s22 = 2.0 * B(2, 2) - sigma;
-            const double s01 = B(0, 1) + B(1, 0);
-            const double s02 = B(0, 2) + B(2, 0);
-            const double s12 = B(1, 2) + B(2, 1);
+
+            const double s00 = 2.0 * B00 - sigma;
+            const double s11 = 2.0 * B11 - sigma;
+            const double s22 = 2.0 * B22 - sigma;
+            const double s01 = B01 + B10;
+            const double s02 = B02 + B20;
+            const double s12 = B12 + B21;
 
             Eigen::Matrix4d K = Eigen::Matrix4d::Zero();
             K << sigma, z0, z1, z2,
@@ -207,10 +227,16 @@ namespace eststack
             Eigen::SelfAdjointEigenSolver<Eigen::Matrix4d> solver(K, Eigen::ComputeEigenvectors);
             Eigen::Vector4d q = solver.eigenvectors().col(3);
 
-            /* don't forget to normalize q */
+            /***
+             * NOTE that Eigen::Quaterniond construct with Eigen::Vector4d is fully copy without swtiching position!
+             * i.e. Eigen::Quaterniond(q) will construct a quaternion with x=q(0), y=q(1), z=q(2), w=q(3)
+             * but normal constructor is Eigen::Quaterniond(w, x, y, z): m_coeffs(x, y, z, w). See, it changes the order!
+             * details refer to [Eigen 5.0.0 Quaternion documentation](https://libeigen.gitlab.io/eigen/docs-5.0/classEigen_1_1Quaternion.html),
+             * just focus on constructor 2/9 and 7/9, here q(0) is real part, use constructor 2/9
+             */
             return Eigen::Quaterniond(q(0), q(1), q(2), q(3)).normalized();
         }
     } // namespace core
 } // namespace eststack
 
-#endif // CORE__DCM_TO_QUAT_HPP
+#endif //! CORE__DCM_TO_QUAT_HPP
