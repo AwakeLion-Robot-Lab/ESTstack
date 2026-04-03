@@ -1,4 +1,3 @@
-
 // Copyright 2026 siyiovo
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,41 +21,15 @@
 // Eigen library
 #include <Eigen/Dense>
 
+// ESTstack library
+#include "eststack/concepts.hpp"
+
 /***
  * @brief An algorithm set focus on estimation and filtering
  * @author jinhua "siyiovo" deng
  */
 namespace eststack
 {
-    /***
-     * @brief DoF of lie group concept
-     * @details for DoF extraction
-     */
-    template <typename T>
-    concept LieGroupDoF = requires {
-        typename T::Scalar;
-        { T::DoF } -> std::convertible_to<int>;
-        requires(T::DoF > 0);
-    };
-
-    /***
-     * @brief Eigen row vector concept
-     * @details for Eigen fixed-size row extraction
-     */
-    template <typename T>
-    concept EigenRow = requires {
-        typename T::Scalar;
-        { T::RowsAtCompileTime } -> std::convertible_to<int>;
-        requires(T::RowsAtCompileTime > 0);
-    };
-
-    /***
-     * @brief static dimension at compile time concept
-     * @details for dimension extraction at compile time
-     */
-    template <typename T>
-    concept DimAtCompileTime = LieGroupDoF<T> || EigenRow<T>;
-
     /***
      * @brief get static dimension of a type at compile time
      * @tparam T type with static dimension at compile time, either Lie group state or fixed-size Eigen vector

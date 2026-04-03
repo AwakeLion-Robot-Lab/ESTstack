@@ -31,6 +31,38 @@
 namespace eststack
 {
     /***
+     * @brief compile-time 95% confidence chi-square critical values table
+     */
+    struct ChiSquareTable
+    {
+        /***
+         * @brief get 95% confidence chi-square critical value at compile-time
+         */
+        template <int DoF>
+        static constexpr double value()
+        {
+            static_assert(DoF >= 1, "DoF must be greater than 0!");
+
+            /* get value from table if low-DoF */
+            if constexpr (DoF <= 10)
+            {
+                constexpr std::array<double, 10> table = {
+                    3.841, 5.991, 7.815, 9.488, 11.070,
+                    12.592, 14.067, 15.507, 16.919, 18.307};
+                return table[DoF - 1];
+            }
+            else /* if DoF > 10, use Wilson-Hilferty approximation */
+            {
+                constexpr double z = 1.645;
+                constexpr double a = 2.0 / (9.0 * DoF);
+                /* std::sqrt may not be constexpr */
+                const double term = 1.0 - a + z * std::sqrt(a);
+                return DoF * term * term * term;
+            }
+        }
+    };
+
+    /***
      * @brief check if a matrix is symmetric
      * @param m the matrix to be checked
      * @param threshold the threshold for checking symmetry

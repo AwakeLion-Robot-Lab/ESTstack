@@ -20,6 +20,7 @@
 
 // Eigen library
 #include <Eigen/Dense>
+#include <Eigen/Cholesky>
 
 // ESTstack library
 #include "eststack/solution/base_kf.hpp"
@@ -43,7 +44,7 @@ namespace eststack
          *          which transition matrix is more clear, here we use local perturbation as default
          * @note local perturbation on manifold as default
          */
-        template <eststack::model::LieGroupState StateT>
+        template <eststack::LieGroupState StateT>
         class ESKFOM : public BaseKF<ESKFOM<StateT>, StateT>
         {
         public:
@@ -54,7 +55,6 @@ namespace eststack
             using Scalar = typename State::Scalar;
             using Tangent = typename State::Tangent;
             using StateCovariance = typename Base::StateCovariance;
-            using UpdateResult = typename Base::UpdateResult;
 
             using Ptr = std::shared_ptr<ESKFOM>;
             using ConstPtr = std::shared_ptr<const ESKFOM>;
@@ -62,10 +62,13 @@ namespace eststack
             /***
              * @brief default constructor
              */
-            ESKFOM(const State &x0, const Eigen::Ref<const StateCovariance> &P0)
+            ESKFOM(const State &x0, const Eigen::Ref<const StateCovariance> &P0,
+                   const int &max_priori_nis_num = 100)
+                : x_(this->setState(x0)), P_(this->setStateCovariance(P0)),
+                  max_priori_nis_num_(max_priori_nis_num)
             {
-                this->setState(x0);
-                this->setStateCovariance(P0);
+                /* just keep up some priori innovations */
+                this->priori_nis_.reserve(this->max_priori_nis_num_);
             }
 
             /***
@@ -105,9 +108,9 @@ namespace eststack
              * @param dt    time step
              */
             template <eststack::model::MeasurementModel MeasurementModel, typename... Args>
-            UpdateResult updateImpl(const MeasurementModel &model,
-                                    const typename MeasurementModel::Measurement &z,
-                                    const typename MeasurementModel::MeasNoise &R, const double &dt)
+            bool updateImpl(const MeasurementModel &model,
+                            const typename MeasurementModel::Measurement &z,
+                            const typename MeasurementModel::MeasNoise &R, const double &dt)
             {
                 const auto z_pred = model.compute(this->x_, dt);
                 /* PLEASE refer to docs/explanation/model.md to figure out how to compute H */
@@ -124,8 +127,8 @@ namespace eststack
                  * we can use SMW equation, a.k.a. matrix inversion lemma (please refer to chapter 2.2.15, [3])
                  * to get K = (P^{-1} + HT(HvRHv)^{-1} H)^{-1} HT(HvRHvT)^{-1} faster
                  */
-                constexpr int StateDim = State::DoF;
-                constexpr int MeasDim = MeasurementModel::MeasJacobian::RowsAtCompileTime;
+                constexpr int StateDim = eststack::getDimAtCompileTime<State>();
+                constexpr int MeasDim = eststack::getDimAtCompileTime<typename MeasurementModel::Measurement>();
 
                 const auto K = [&]()
                 {
@@ -165,20 +168,25 @@ namespace eststack
                 const auto G = Ix - (0.5 * tau.smallAdj());
                 this->P_ = G * this->P_ * G.transpose();
 
-                /* last thing is check whether converge via NIS */
-                if constexpr (MeasDim < 10)
+                /***
+                 * last thing is check whether converge via NIS
+                 * NOTE that we can use priori state N(x-, P-) at this point instead of batch estimation N(x+, P+) from all measurements
+                 * details can be found in [3], chapter 5.1.2
+                 */
+                Eigen::LLT<Eigen::MatrixXd> llt(S);
+                const double nis = inno.dot(llt.solve(inno));
+
+                if (nis < ChiSquareTable::value<MeasDim>())
                 {
-                    /***
-                     * NOTE that we can use priori state N(x-, P-) at this point instead of batch estimation N(x+, P+) from all measurements
-                     * details can be found in [3], chapter 5.1.2
-                     */
-                    const double nis = inno.transpose() * S.ldlt().solve(inno);
-                    const bool converge = nis < ChiSquareTable::value<MeasDim>();
-                    return {converge, nis};
+                    this->priori_nis_.push_back(nis);
+                    if (this->priori_nis_.size() > this->max_priori_nis_num_)
+                        this->priori_nis_.pop_front();
+
+                    return true;
                 }
-                else /* if measurement dimension is too high, did not calculate NIS */
+                else
                 {
-                    return {true, 0.0};
+                    return false;
                 }
             }
         };

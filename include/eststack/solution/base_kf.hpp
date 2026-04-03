@@ -20,6 +20,8 @@
 #include <concepts>
 #include <type_traits>
 #include <utility>
+#include <deque>
+#include <cmath>
 
 // Eigen library
 #include <Eigen/Dense>
@@ -27,6 +29,7 @@
 // ESTstack library
 #include "eststack/types.hpp"
 #include "eststack/eigen_traits.hpp"
+#include "eststack/concepts.hpp"
 
 /***
  * @brief An algorithm set focus on state estimation
@@ -39,58 +42,6 @@ namespace eststack
      */
     namespace solution
     {
-        /***
-         * @brief compile-time 95% confidence chi-square critical values table
-         * @details include DoF of 1-9
-         */
-        struct ChiSquareTable
-        {
-            /***
-             * @brief get critical value for given DoF
-             * @tparam DoF degrees of freedom
-             * @return chi-square critical value at 95% confidence
-             */
-            template <int DoF>
-            static consteval double value()
-            {
-                static_assert(DoF >= 1 && DoF <= 9, "DoF must be in [1, 9] for built-in table");
-                constexpr std::array<double, 9> table = {
-                    3.841,
-                    5.991,
-                    7.815,
-                    9.488,
-                    11.070,
-                    12.592,
-                    14.067,
-                    15.507,
-                    16.919};
-                return table[DoF - 1];
-            }
-        };
-
-        /***
-         * @brief update result struct
-         * @param converge whether the filter converges after update step
-         * @param metric convergence metric
-         */
-        struct UpdateResult
-        {
-            explicit operator bool() const noexcept
-            {
-                return converge;
-            }
-
-            /***
-             * @brief convergence flag
-             */
-            bool converge{false};
-
-            /***
-             * @brief convergence metric, e.g. NIS value
-             */
-            double metric{0.0};
-        };
-
         /***
          * @brief base class for kalman filter
          * @tparam Derived derived kalman filter class
@@ -111,7 +62,7 @@ namespace eststack
              */
             void setState(const State &state) noexcept
             {
-                x_ = state;
+                this->x_ = state;
             }
 
             /***
@@ -119,7 +70,7 @@ namespace eststack
              */
             const State &getState() const noexcept
             {
-                return x_;
+                return this->x_;
             }
 
             /***
@@ -128,8 +79,7 @@ namespace eststack
              */
             void setStateCovariance(const Eigen::Ref<const StateCovariance> &cov) noexcept
             {
-                static_assert(isCovariance(cov), "The state covariance matrix must be positive semi-definite!");
-                P_ = cov;
+                this->P_ = cov;
             }
 
             /***
@@ -137,7 +87,7 @@ namespace eststack
              */
             const StateCovariance &getStateCovariance() const noexcept
             {
-                return P_;
+                return this->P_;
             }
 
             /***
@@ -165,10 +115,9 @@ namespace eststack
              * @param z measurement vector
              * @param R measurement noise covariance
              * @param args additional arguments
-             * @return converge flag and its metric
              */
             template <typename MeasurementModel, typename Measurement, typename MeasNoise, typename... Args>
-            UpdateResult update(const MeasurementModel &model, const Measurement &z, const MeasNoise &R, Args &&...args)
+            bool update(const MeasurementModel &model, const Measurement &z, const MeasNoise &R, Args &&...args)
             {
                 return static_cast<Derived *>(this)->updateImpl(model, z, R, std::forward<Args>(args)...);
             }
@@ -191,7 +140,18 @@ namespace eststack
              * @details it represents error covariance in ESKFOM which is defined on the tangent space of the manifold (homeomorphic to Euclidean space),
              *          since the "nominal covariance" is not well-defined on manifold
              */
-            StateCovariance P_ = StateCovariance::Identity();
+            StateCovariance P_;
+
+            /***
+             * @brief priori NIS from update step
+             * @details it just stores NIS while converged
+             */
+            std::deque<double> priori_nis_;
+
+            /***
+             * @brief maximum number of priori NIS
+             */
+            int max_priori_nis_num_;
         };
 
     }

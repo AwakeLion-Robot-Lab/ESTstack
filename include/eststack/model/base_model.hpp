@@ -26,6 +26,7 @@
 // eststack library
 #include "eststack/types.hpp"
 #include "eststack/eigen_traits.hpp"
+#include "eststack/concepts.hpp"
 
 /***
  * @brief An algorithm set focus on state estimation
@@ -38,70 +39,6 @@ namespace eststack
      */
     namespace model
     {
-        /***
-         * @brief lie group state concept
-         * @details constraint from lie group base defined by [manif](https://github.com/artivis/manif/blob/devel/include/manif/impl/lie_group_base.h)
-         */
-        template <typename T>
-        concept LieGroupState = requires(T state) {
-            typename T::Scalar;
-            typename T::Tangent;
-            typename T::DataType;
-            typename T::Jacobian;
-
-            { T::Dim } -> std::convertible_to<int>;
-            { T::DoF } -> std::convertible_to<int>;
-            { T::RepSize } -> std::convertible_to<int>;
-
-            /* plus operation constraint: SO(3) x R^3 -> SO(3) */
-            { state + std::declval<typename T::Tangent>() } -> std::same_as<T>;
-            /* minus operation constraint: SO(3) x SO(3) -> R^3 */
-            { state - std::declval<T>() } -> std::same_as<typename T::Tangent>;
-        };
-
-        /***
-         * @brief compute with autodiff concept
-         */
-        template <typename T>
-        concept AutoComputable = std::is_same_v<typename T::ControlInput, typename T::State::Tangent>;
-
-        /***
-         * @brief transition model concept
-         */
-        template <typename T>
-        concept TransitionModel = requires(T model) {
-            typename T::State;
-            typename T::Scalar;
-            typename T::ControlInput;
-            typename T::ProcessNoise;
-            typename T::StateJacobian;
-            /* for dim(T_I(M)) != dim(control input), like SE_2(3) and mostly Bundle */
-            typename T::NoiseJacobian;
-
-            {
-                model.autoCompute(std::declval<typename T::State>(), std::declval<typename T::ControlInput>(), std::declval<double>(),
-                                  std::declval<Eigen::Ref<typename T::StateJacobian>>(), std::declval<Eigen::Ref<typename T::NoiseJacobian>>())
-            } -> std::same_as<typename T::State>;
-            { model.compute(std::declval<typename T::State>(), std::declval<typename T::ControlInput>(), std::declval<double>()) } -> std::same_as<typename T::State::Tangent>;
-            { model.computeJacobians(std::declval<typename T::State>(), std::declval<typename T::ControlInput>(), std::declval<double>()) } -> std::same_as<std::tuple<typename T::StateJacobian, typename T::NoiseJacobian>>;
-        };
-
-        /***
-         * @brief measurement model concept
-         */
-        template <typename T>
-        concept MeasurementModel = requires(T model) {
-            typename T::State;
-            typename T::Measurement;
-            typename T::MeasNoise;
-            typename T::MeasJacobian;
-            /* for dim(measurement) != dim(measurement noise) */
-            typename T::NoiseJacobian;
-
-            { model.compute(std::declval<typename T::State>(), std::declval<double>()) } -> std::same_as<typename T::Measurement>;
-            { model.computeJacobians(std::declval<typename T::State>(), std::declval<double>()) } -> std::same_as<std::tuple<typename T::MeasJacobian, typename T::NoiseJacobian>>;
-        };
-
         /***
          * @brief base class for transition model
          * @tparam Derived derived transition model class
@@ -132,7 +69,7 @@ namespace eststack
             State autoCompute(const State &x, const ControlInput &u,
                               Eigen::Ref<StateJacobian> Fx, Eigen::Ref<NoiseJacobian> Fw, const double &dt) const
             {
-                static_assert(AutoComputable<Derived>, "this is an non-auto-computable model, please modify other functions!");
+                static_assert(eststack::AutoComputable<Derived>, "this is an non-auto-computable model, please modify other functions!");
                 const typename State::Tangent tau = u * dt;
                 return x.rplus(tau, Fx, Fw);
             }

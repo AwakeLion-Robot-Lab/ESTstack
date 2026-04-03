@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MODEL__SINGLE_ARMOR_HPP
-#define MODEL__SINGLE_ARMOR_HPP
+#ifndef MODEL__ARMORS_HPP
+#define MODEL__ARMORS_HPP
 
 // Eigen library
 #include <Eigen/Dense>
@@ -38,25 +38,37 @@ namespace eststack
     namespace model
     {
         /***
-         * @brief RM single armor motion model
-         * @details state: [x, y, z, vx, vy, vz, theta, omega]
-         *              - x, y, z: target position in gun frame
-         *              - vx, vy, vz: target velocity in gun frame
-         *              - theta: target yaw angle (SO(2) manifold)
-         *              - omega: yaw angular velocity
+         * @brief RM entire 4 armors motion model
+         * @details state: [x, y, z, vx, vy, vz, theta, omega, r, l, h]
+         *              - x, y, z: armor position in gun frame
+         *              - vx, vy, vz: armor velocity in gun frame
+         *              - theta: armor yaw angle (SO(2) manifold) in gun frame
+         *              - omega: armor yaw angular velocity
+         *              - r: distance from armor center to car center
+         *              - l: minus distance of long axis and short axis of the car
+         *              - h: height between two armors center
+         *
          *          control input: [x, y, z, theta]
          *          process noise: [vx, vy, vz, omega]
+         *
+         *          reference: https://github.com/TongjiSuperPower/sp_vision_25/blob/main/tasks/auto_aim/target.cpp#L34
          */
-        class SingleArmor : public BaseTransitionModel<SingleArmor>
+        class Armors final : public BaseTransitionModel<Armors>
         {
         public:
-            using State = manif::Bundle<double, manif::SO2, manif::R7>;
+            using State = manif::Bundle<double, manif::R3, manif::R3, manif::SO2, manif::R1, manif::R1, manif::R1, manif::R1>;
+            /* x y z theta */
             using ControlInput = Eigen::Vector4d;
+            /* sigma_vx sigma_vy sigma_vz sigma_omega */
             using ProcessNoise = Eigen::Vector4d;
+
+            using Base = BaseTransitionModel<Armors>;
+            using StateJacobian = typename Base::StateJacobian;
+            using NoiseJacobian = typename Base::NoiseJacobian;
 
             [[deprecated]]
             State autoComputeImpl(const State &x, const ControlInput &u,
-                                  Eigen::Ref<StateJacobian> Fx, Eigen::Ref<NoiseJacobian> Fw, const double &dt) const;
+                                  Eigen::Ref<StateJacobian> Fx, Eigen::Ref<NoiseJacobian> Fw, const double &dt) const = delete;
 
             /***
              * @brief compute the state jacobian
@@ -64,7 +76,11 @@ namespace eststack
              * @param u control input (dt)
              * @return state jacobian matrix
              */
-            StateJacobian computeStateJacobianImpl(const State &x, const ControlInput &u, const double &dt) const;
+            StateJacobian computeStateJacobianImpl(const State &x, const ControlInput &u, const double &dt)
+            {
+                StateJacobian Fx = StateJacobian::Identity();
+                return Fx;
+            }
 
             /***
              * @brief compute the noise jacobian
@@ -77,4 +93,4 @@ namespace eststack
     }
 }
 
-#endif //! MODEL__SINGLE_ARMOR_HPP
+#endif //! MODEL__ARMORS_HPP

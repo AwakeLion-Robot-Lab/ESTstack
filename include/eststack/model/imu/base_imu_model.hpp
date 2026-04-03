@@ -26,3 +26,25 @@
 // ESTstack library
 #include "eststack/model/base_model.hpp"
 #include "eststack/types.hpp"
+
+/***
+ * @brief An algorithm set focus on state estimation
+ * @author jinhua "siyiovo" deng
+ */
+namespace eststack
+{
+    /***
+     * @brief models for problems
+     */
+    namespace model
+    {
+        /***
+         * @brief base class for IMU model
+         */
+        class BaseIMUModel : public BaseTransitionModel<BaseIMUModel>
+        {
+        };
+    }
+}
+
+#endif //! MODEL__BASE_IMU_MODEL_HPP

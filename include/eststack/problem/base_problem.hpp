@@ -34,19 +34,6 @@ namespace eststack
     namespace problem
     {
         /***
-         * @brief filter-based problem concept
-         * @details constrains any type that acts as a filtering problem:
-         *   owns a filter, exposes State / Covariance, and can be initialized
-         */
-        template <typename T>
-        concept EstProblem = requires(T prob) {
-            { prob.isInitialized() } -> std::convertible_to<bool>;
-            { prob.setSolution(std::declval<typename T::Solution>()) } -> std::same_as<void>;
-            { prob.isOK() } -> std::same_as<bool>;
-            { prob.run() } -> std::same_as<bool>;
-        };
-
-        /***
          * @brief base class for estimation problems
          * @tparam Derived problem class
          * @tparam StateT state type
@@ -68,20 +55,20 @@ namespace eststack
             }
 
             /***
-             * @brief get state
-             */
-            const State &getState() const noexcept
-            {
-                return state_;
-            }
-
-            /***
              * @brief set state
              * @param state state
              */
             void setState(const State &state) noexcept
             {
                 state_ = state;
+            }
+
+            /***
+             * @brief get state
+             */
+            const State &getState() const noexcept
+            {
+                return state_;
             }
 
             /***

@@ -44,8 +44,8 @@ namespace eststack
          * @param target target point cloud
          * @return transformation from source to target
          */
-        Eigen::Matrix4d kabsch(const pcl::PointCloud<pcl::PointXYZ>::Ptr &source,
-                               const pcl::PointCloud<pcl::PointXYZ>::Ptr &target)
+        Eigen::Isometry3d kabsch(const pcl::PointCloud<pcl::PointXYZ>::Ptr &source,
+                                 const pcl::PointCloud<pcl::PointXYZ>::Ptr &target)
         {
             const size_t N = source->size();
             if (N == 0)
@@ -95,9 +95,9 @@ namespace eststack
             /* compute translation */
             const Eigen::Vector3d t = target_centroid - R * source_centroid;
 
-            Eigen::Matrix4d T = Eigen::Matrix4d::Identity();
-            T.topLeftCorner<3, 3>() = R;
-            T.topRightCorner<3, 1>() = t;
+            Eigen::Isometry3d T = Eigen::Isometry3d::Identity();
+            T.linear() = R;
+            T.translation() = t;
             return T;
         }
     }
