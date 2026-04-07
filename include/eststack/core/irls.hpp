@@ -18,13 +18,15 @@
 // C++ standard library
 #include <cmath>
 #include <limits>
-#include <functional>
+#include <vector>
+#include <numeric>
 
 // Eigen library
 #include <Eigen/Dense>
 
 // ESTstack library
 #include "eststack/concepts.hpp"
+#include "eststack/core/kabsch.hpp"
 
 /***
  * @brief An algorithm set focus on state estimation
@@ -38,40 +40,102 @@ namespace eststack
     namespace core
     {
         /***
-         * @brief Scale-Adaptive Cauchy loss function for robust estimation
-         * @details weight = scale^2 / (residual^2 + scale^2)
+         * @brief Cauchy loss function
          */
-        struct SACauchyLoss
+        struct CauchyLoss
         {
             /***
-             * @brief compute Cauchy weight
-             * @param residual_sq squared residual
-             * @param scale_sq squared scale parameter (alpha^2)
-             * @return weight value
+             * @brief assign weight for each residual
              */
-            static double weight(double residual_sq, double scale_sq)
+            static double weight(double residual, double scale)
             {
-                return scale_sq / (residual_sq + scale_sq);
+                double scale_sq = scale * scale;
+                double res_sq = residual * residual;
+                return scale_sq / (res_sq + scale_sq);
             }
 
             /***
-             * @brief check if residual is inlier
-             * @param residual absolute residual
-             * @param scale scale parameter (alpha)
-             * @return true if inlier
+             * @brief check whether is inlier via residual
              */
             static bool isInlier(double residual, double scale)
             {
-                return std::abs(residual) < 3 * scale;
+                return std::abs(residual) < 3.0 * scale;
             }
         };
 
         /***
-         * @brief Iteratively Reweighted Least Squares for robust estimation
-         * @tparam LossFunc loss function type
-         * @tparam StateT state type
+         * @brief Huber loss function
          */
-        template <typename LossFunc, DimAtCompileTime StateT>
+        struct HuberLoss
+        {
+            /***
+             * @brief assign weight for each residual
+             */
+            static double weight(double residual, double scale)
+            {
+                double abs_res = std::abs(residual);
+                if (abs_res <= scale)
+                    return 1.0;
+                else
+                    return scale / abs_res;
+            }
+
+            /***
+             * @brief check whether is inlier via residual
+             */
+            static bool isInlier(double residual, double scale)
+            {
+                return std::abs(residual) < 3.0 * scale;
+            }
+        };
+
+        /***
+         * @brief IRLS result
+         */
+        struct IRLSResult
+        {
+            IRLSResult(const Eigen::Isometry3d &T = Eigen::Isometry3d::Identity(), double cost = 0.0, double scale = 0.0,
+                       int inlier_count = 0, int iterations = 0, bool converged = false)
+                : T_(T), cost_(cost), scale_(scale),
+                  inlier_count_(inlier_count), iterations_(iterations), converged_(converged) {}
+
+            /***
+             * @brief transformation
+             */
+            Eigen::Isometry3d T_;
+
+            /***
+             * @brief cost
+             * @details formula: sqrt(new_weight * new_residual) - sqrt(old_weight * old_residual)
+             */
+            double cost_;
+
+            /***
+             * @brief scale for specific loss function
+             */
+            double scale_;
+
+            /***
+             * @brief number of inliers
+             */
+            int inlier_count_;
+
+            /***
+             * @brief number of iterations
+             */
+            int iterations_;
+
+            /***
+             * @brief convergence flag
+             */
+            bool converged_;
+        };
+
+        /***
+         * @brief Iteratively Reweighted Least Squares for robust rigid transformation
+         * @tparam LossFunc Loss function type
+         */
+        template <LossFunction LossFunc>
         class IRLS
         {
         public:
@@ -79,11 +143,11 @@ namespace eststack
              * @brief default constructor
              * @param decay_factor scale decay factor
              * @param min_scale minimum scale threshold
-             * @param cost_tolerance cost convergence tolerance
+             * @param cost_tolerance cost change tolerance
              * @param max_iter maximum iterations
              */
-            explicit IRLS(double decay_factor = 1.3, double min_scale = 1.0,
-                          double cost_tolerance = 0.01, int max_iter = 100)
+            explicit IRLS(float decay_factor = 1.3, float min_scale = 1.0,
+                          float cost_tolerance = 0.01, int max_iter = 100)
                 : decay_factor_(decay_factor), min_scale_(min_scale),
                   cost_tolerance_(cost_tolerance), max_iter_(max_iter)
             {
@@ -91,134 +155,124 @@ namespace eststack
 
             /***
              * @brief run IRLS optimization
-             * @tparam ResidualFuncType residual computation function type
-             * @tparam UpdateFunc state update function type
-             * @param init_state initial state estimation
-             * @param measurements measurement data
-             * @param compute_residuals function: (state, measurements) -> residuals vector
-             * @param update_state function: (measurements, inlier_indices, weights) -> new_state
-             * @return IRLSResult containing final state and convergence info
+             * @param source 3xN source points
+             * @param target 3xN target points
+             * @return IRLSResult
              */
-            template <typename ResidualFuncType, typename UpdateFunc>
-            State run(const StateT &init_state,
-                     const StateT &measurements,
-                     ResidualFuncType &&compute_residuals,
-                     UpdateFunc &&update_state)
+            IRLSResult optimize(const Eigen::Matrix3Xd &source, const Eigen::Matrix3Xd &target)
             {
-                StateT current_state = init_state;
+                /* check source-target dimensions */
+                const int N = static_cast<int>(source.cols());
+                if (N == 0 || N != target.cols())
+                    return IRLSResult();
+
+                /* initialization */
+                Eigen::VectorXi inlier_indices = Eigen::VectorXi::LinSpaced(N, 0, N - 1);
+                Eigen::VectorXd weights = Eigen::VectorXd::Ones(N);
+                Eigen::Isometry3d trans = Eigen::Isometry3d::Identity();
+                Eigen::Matrix3Xd source_current = source;
+                Eigen::Matrix3Xd target_current = target;
+
+                double scale = 0.0;
                 double prev_cost = std::numeric_limits<double>::max();
-                double scale = std::numeric_limits<double>::max();
-
-                // Get initial residuals to determine number of points
-                Eigen::VectorXd residuals = compute_residuals(current_state, measurements);
-                const int n_points = residuals.size();
-
-                // Initialize inlier indices (all points initially)
-                Eigen::VectorXi inlier_indices = Eigen::VectorXi::LinSpaced(n_points, 0, n_points - 1);
-                Eigen::VectorXd weights = Eigen::VectorXd::Ones(n_points);
 
                 for (int iter = 1; iter <= max_iter_; ++iter)
                 {
-                    // Select inlier measurements for this iteration
-                    const int n_inliers = inlier_indices.size();
+                    const int inlier_num = inlier_indices.size();
 
-                    // Step 1: Compute residuals with current state
-                    residuals = compute_residuals(current_state, measurements);
+                    /***
+                     * select inlier points via block operations
+                     * reference: https://github.com/ShiPC-AI/TCF/blob/main/registration/irls_welsch.cpp#L16
+                     */
+                    Eigen::Matrix3Xd source_inlier = source_current(Eigen::all, inlier_indices);
+                    Eigen::Matrix3Xd target_inlier = target_current(Eigen::all, inlier_indices);
 
-                    // Step 2: Initialize scale on first iteration to max |residual|
+                    /* compute transformation via weighted kabsch */
+                    trans = weighted_kabsch(source_inlier, target_inlier, weights.head(inlier_num));
+                    const Eigen::Matrix3d R = trans.linear();
+                    const Eigen::Vector3d t = trans.translation();
+
+                    /* compute initial residuals */
+                    const Eigen::Matrix3Xd fit = (R * source_inlier).colwise() + t;
+                    const Eigen::VectorXd residuals = (fit - target_inlier).colwise().norm();
+
+                    /* initialize scale on first iteration */
                     if (iter == 1)
                     {
-                        scale = residuals.cwiseAbs().maxCoeff();
+                        scale = residuals.maxCoeff();
+                        /* early convergence, just return */
                         if (scale < min_scale_)
-                        {
-                            // Perfect fit, no need to iterate
-                            result.converged = true;
-                            result.iterations = 0;
-                            result.cost = 0.0;
-                            result.scale = scale;
-                            result.state = current_state;
-                            result.inlier_count = n_points;
-                            return result;
-                        }
+                            return IRLSResult(trans, 0.0, scale, inlier_num, 1, true);
                     }
 
-                    // Step 3: Compute weighted cost (energy)
-                    // Only use inlier residuals for cost computation
-                    double cost = 0.0;
-                    for (int i = 0; i < n_inliers; ++i)
+                    /* compute weighted cost */
+                    const double cost = weights.head(inlier_num).cwiseProduct(residuals.cwiseProduct(residuals)).sum();
+
+                    /* check convergence */
+                    if (iter > 1)
                     {
-                        const int idx = inlier_indices(i);
-                        cost += weights(i) * residuals(idx) * residuals(idx);
+                        if (std::abs(cost - prev_cost) < cost_tolerance_ || scale < min_scale_)
+                            return IRLSResult(trans, cost, scale, inlier_num, iter, true);
                     }
-
-                    // Step 4: Update inlier set (truncation: residual < truncation_factor * scale)
-                    int new_n_inliers = 0;
-                    const double threshold = LossFunc::kTruncationFactor * scale;
-                    for (int i = 0; i < n_points; ++i)
-                    {
-                        if (std::abs(residuals(i)) < threshold)
-                        {
-                            inlier_indices(new_n_inliers++) = i;
-                        }
-                    }
-
-                    // Resize inlier_indices to actual count
-                    inlier_indices.conservativeResize(new_n_inliers);
-
-                    // Step 5: Update weights for inliers using loss function
-                    const double scale_sq = scale * scale;
-                    weights.resize(new_n_inliers);
-                    for (int i = 0; i < new_n_inliers; ++i)
-                    {
-                        const int idx = inlier_indices(i);
-                        const double residual_sq = residuals(idx) * residuals(idx);
-                        weights(i) = LossFunc::weight(residual_sq, scale_sq);
-                    }
-
-                    // Step 6: Normalize weights
-                    const double weight_sum = weights.sum();
-                    if (weight_sum > std::numeric_limits<double>::epsilon())
-                    {
-                        weights /= weight_sum;
-                    }
-
-                    // Step 7: Update state using weighted inlier measurements
-                    current_state = update_state(measurements, inlier_indices.head(new_n_inliers),
-                                                 weights.head(new_n_inliers));
-
-                    // Step 8: Check convergence
-                    const double cost_diff = std::abs(cost - prev_cost);
-                    if (cost_diff < cost_tolerance_ || scale < min_scale_)
-                    {
-                        result.converged = true;
-                        result.iterations = iter;
-                        result.cost = cost;
-                        result.scale = scale;
-                        result.state = current_state;
-                        result.inlier_count = new_n_inliers;
-                        return result;
-                    }
-
-                    // Step 9: Decay scale for next iteration (alpha = alpha / mu)
-                    scale = scale / decay_factor_;
                     prev_cost = cost;
+
+                    /* update inliers via scale of loss function */
+                    Eigen::VectorXi new_inliers(inlier_num);
+                    int new_inlier_num = 0;
+                    for (int i = 0; i < inlier_num; ++i)
+                    {
+                        if (LossFunc::isInlier(residuals(i), scale))
+                            new_inliers(new_inlier_num++) = inlier_indices(i);
+                    }
+
+                    /* no inliers remain, poor fit */
+                    if (new_inlier_num == 0)
+                        return IRLSResult(trans, prev_cost, scale, 0, iter, false);
+
+                    /* resize and update inlier indices */
+                    inlier_indices.conservativeResize(new_inlier_num);
+                    inlier_indices = new_inliers.head(new_inlier_num);
+
+                    /* update weights via loss function */
+                    weights.conservativeResize(new_inlier_num);
+                    for (int i = 0; i < new_inlier_num; ++i)
+                    {
+                        weights(i) = LossFunc::weight(residuals(i), scale);
+                    }
+
+                    /* update scale for next iteration */
+                    scale /= decay_factor_;
                 }
 
-                // Max iterations reached without convergence
-                result.converged = false;
-                result.iterations = max_iter_;
-                result.cost = prev_cost;
-                result.scale = scale;
-                result.state = current_state;
-                result.inlier_count = inlier_indices.size();
-                return result;
+                /***
+                 * NOTE that if not converge until max_iter_,
+                 * scale must multiply by decay factor to back in,
+                 * because there is no more next iteration!
+                 */
+                return IRLSResult(trans, prev_cost, scale * decay_factor_,
+                                  inlier_indices.size(), max_iter_, false);
             }
 
         private:
-            double decay_factor_;   // mu: scale decay factor
-            double min_scale_;      // gamma_min: minimum scale threshold
-            double cost_tolerance_; // e_min: cost convergence tolerance
-            int max_iter_;          // N_j: maximum iterations
+            /***
+             * @brief decay factor for scale update
+             */
+            float decay_factor_;
+
+            /***
+             * @brief minimum scale threshold for convergence
+             */
+            float min_scale_;
+
+            /***
+             * @brief cost change tolerance for convergence
+             */
+            float cost_tolerance_;
+
+            /***
+             * @brief maximum iterations
+             */
+            int max_iter_;
         };
 
     } // namespace core

@@ -100,7 +100,214 @@ namespace eststack
             T.translation() = t;
             return T;
         }
-    }
-}
+
+        /***
+         * @brief get best rigid transformation via SVD
+         * @param source 3xN source points
+         * @param target 3xN target points
+         * @return transformation from source to target
+         * @details each column of `source` and `target` is a point, and the order of points should be consistent between two sets
+         */
+        inline Eigen::Isometry3d kabsch(const Eigen::Matrix3Xd &source,
+                                        const Eigen::Matrix3Xd &target)
+        {
+            const int N = source.cols();
+            if (N == 0 || N != target.cols())
+                return Eigen::Isometry3d::Identity();
+
+            /* compute centroids */
+            Eigen::Vector3d source_centroid = source.rowwise().mean();
+            Eigen::Vector3d target_centroid = target.rowwise().mean();
+
+            /* compute covariance matrix using TBB parallel reduction */
+            tbb::combinable<Eigen::Matrix3d> cov([]
+                                                 { return Eigen::Matrix3d::Zero(); });
+            tbb::parallel_for(
+                tbb::blocked_range<int>(0, N, 1024),
+                [&](const tbb::blocked_range<int> &r)
+                {
+                    Eigen::Matrix3d &local_H = cov.local();
+                    for (int i = r.begin(); i != r.end(); ++i)
+                    {
+                        /* compute translation vector between each pt to centroid both in two pointclouds */
+                        const Eigen::Vector3d p = source.col(i) - source_centroid;
+                        const Eigen::Vector3d q = target.col(i) - target_centroid;
+                        local_H.noalias() += q * p.transpose();
+                    }
+                });
+
+            Eigen::Matrix3d H = Eigen::Matrix3d::Zero();
+            cov.combine_each([&](const Eigen::Matrix3d &local)
+                             { H += local; });
+
+            /* SVD for best rotation */
+            Eigen::JacobiSVD<Eigen::Matrix3d> svd(H, Eigen::ComputeFullU | Eigen::ComputeFullV);
+            const auto &U = svd.matrixU();
+            const auto &V = svd.matrixV();
+
+            /* constrain rotation matrix to SO(3) about det(R) = 1 */
+            Eigen::Matrix3d R = V * U.transpose();
+            if (U.determinant() * V.determinant() < 0)
+                R.col(2) = -R.col(2); /* if reflection, flip the sign */
+
+            /* compute translation */
+            const Eigen::Vector3d t = target_centroid - R * source_centroid;
+
+            Eigen::Isometry3d T = Eigen::Isometry3d::Identity();
+            T.linear() = R;
+            T.translation() = t;
+            return T;
+        }
+
+        /***
+         * @brief get best rigid transformation via SVD with weights
+         * @param source source point cloud
+         * @param target target point cloud
+         * @param weights weights of each point
+         * @return transformation from source to target
+         */
+        Eigen::Isometry3d weighted_kabsch(const pcl::PointCloud<pcl::PointXYZ>::Ptr &source,
+                                          const pcl::PointCloud<pcl::PointXYZ>::Ptr &target,
+                                          const Eigen::VectorXd &weights)
+        {
+            const size_t N = source->size();
+            if (N == 0)
+                throw std::invalid_argument("pointcloud is empty!");
+            if (N != target->size())
+                throw std::invalid_argument("source/target pointcloud size mismatch!");
+
+            /* check weight sum */
+            double weight_sum = weights.sum();
+            /* if weight sum is zero, use uniform weights as no preference circumstance */
+            if (weight_sum < std::numeric_limits<double>::epsilon())
+            {
+                Eigen::VectorXd uniform_weights = Eigen::VectorXd::Ones(N) / N;
+                return weighted_kabsch(source, target, uniform_weights);
+            }
+
+            Eigen::VectorXd w = weights / weight_sum;
+
+            /* compute weighted centroids */
+            Eigen::Vector3d source_centroid = Eigen::Vector3d::Zero();
+            Eigen::Vector3d target_centroid = Eigen::Vector3d::Zero();
+            for (size_t i = 0; i < N; ++i)
+            {
+                source_centroid += w(i) * source->points[i].getVector3fMap().cast<double>();
+                target_centroid += w(i) * target->points[i].getVector3fMap().cast<double>();
+            }
+
+            /* compute weighted covariance matrix using TBB parallel reduction */
+            tbb::combinable<Eigen::Matrix3d> cov([]
+                                                 { return Eigen::Matrix3d::Zero(); });
+            tbb::parallel_for(
+                tbb::blocked_range<size_t>(0, N, 1024),
+                [&](const tbb::blocked_range<size_t> &r)
+                {
+                    Eigen::Matrix3d &local_H = cov.local();
+                    for (size_t i = r.begin(); i != r.end(); ++i)
+                    {
+                        const double w_sqrt = std::sqrt(w(i));
+                        const Eigen::Vector3d p = (source->points[i].getVector3fMap().cast<double>() - source_centroid) * w_sqrt;
+                        const Eigen::Vector3d q = (target->points[i].getVector3fMap().cast<double>() - target_centroid) * w_sqrt;
+                        local_H.noalias() += q * p.transpose();
+                    }
+                });
+
+            Eigen::Matrix3d H = Eigen::Matrix3d::Zero();
+            cov.combine_each([&](const Eigen::Matrix3d &local)
+                             { H += local; });
+
+            /* SVD for best rotation */
+            Eigen::JacobiSVD<Eigen::Matrix3d> svd(H, Eigen::ComputeFullU | Eigen::ComputeFullV);
+            const auto &U = svd.matrixU();
+            const auto &V = svd.matrixV();
+
+            /* constrain rotation matrix to SO(3) */
+            Eigen::Matrix3d R = V * U.transpose();
+            if (U.determinant() * V.determinant() < 0)
+                R.col(2) = -R.col(2);
+
+            /* compute translation */
+            const Eigen::Vector3d t = target_centroid - R * source_centroid;
+
+            Eigen::Isometry3d T = Eigen::Isometry3d::Identity();
+            T.linear() = R;
+            T.translation() = t;
+            return T;
+        }
+
+        /***
+         * @brief get best rigid transformation via SVD with weights
+         * @param source 3xN source points
+         * @param target 3xN target points
+         * @param weights weights of each point
+         * @details each column of `source` and `target` is a point, and the order of points should be consistent between two sets
+         * @return transformation from source to target
+         */
+        inline Eigen::Isometry3d weighted_kabsch(const Eigen::Matrix3Xd &source,
+                                                 const Eigen::Matrix3Xd &target,
+                                                 const Eigen::VectorXd &weights)
+        {
+            const int N = source.cols();
+            if (N == 0 || N != target.cols())
+                return Eigen::Isometry3d::Identity();
+
+            /* check weight sum */
+            double weight_sum = weights.sum();
+            /* if weight sum is zero, use uniform weights as no preference circumstance */
+            if (weight_sum < std::numeric_limits<double>::epsilon())
+            {
+                Eigen::VectorXd uniform_weights = Eigen::VectorXd::Ones(N) / N;
+                return weighted_kabsch(source, target, uniform_weights);
+            }
+
+            /* normalized weights */
+            Eigen::VectorXd w = weights / weight_sum;
+
+            /* compute weighted centroids */
+            Eigen::Vector3d source_centroid = source * w;
+            Eigen::Vector3d target_centroid = target * w;
+
+            /* compute weighted covariance matrix using TBB parallel reduction */
+            tbb::combinable<Eigen::Matrix3d> cov([]
+                                                 { return Eigen::Matrix3d::Zero(); });
+            tbb::parallel_for(
+                tbb::blocked_range<int>(0, N, 1024),
+                [&](const tbb::blocked_range<int> &r)
+                {
+                    Eigen::Matrix3d &local_H = cov.local();
+                    for (int i = r.begin(); i != r.end(); ++i)
+                    {
+                        const double w_sqrt = std::sqrt(w(i));
+                        const Eigen::Vector3d p = (source.col(i) - source_centroid) * w_sqrt;
+                        const Eigen::Vector3d q = (target.col(i) - target_centroid) * w_sqrt;
+                        local_H.noalias() += q * p.transpose();
+                    }
+                });
+
+            Eigen::Matrix3d H = Eigen::Matrix3d::Zero();
+            cov.combine_each([&](const Eigen::Matrix3d &local)
+                             { H += local; });
+
+            /* SVD for best rotation */
+            Eigen::JacobiSVD<Eigen::Matrix3d> svd(H, Eigen::ComputeFullU | Eigen::ComputeFullV);
+            const auto &U = svd.matrixU();
+            const auto &V = svd.matrixV();
+
+            /* constrain rotation matrix to SO(3) */
+            Eigen::Matrix3d R = V * U.transpose();
+            if (U.determinant() * V.determinant() < 0)
+                R.col(2) = -R.col(2);
+
+            /* compute translation */
+            const Eigen::Vector3d t = target_centroid - R * source_centroid;
+
+            Eigen::Isometry3d T = Eigen::Isometry3d::Identity();
+            T.linear() = R;
+            T.translation() = t;
+            return T;
+        }
+    } // namespace core
+} // namespace eststack
 
 #endif //! CORE__KABSCH_HPP

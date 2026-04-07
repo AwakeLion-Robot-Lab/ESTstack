@@ -61,6 +61,16 @@ namespace eststack
     template <typename T>
     concept DimAtCompileTime = LieGroupDoF<T> || EigenRow<T>;
 
+    /***
+     * @brief sample consensus model concept
+     */
+    template <typename T>
+    concept SACModel = requires(T model) {
+        { T::fitSize } -> std::convertible_to<int>;
+        { model.fit() } -> std::convertible_to<bool>;
+        { model.isInlier() } -> std::convertible_to<bool>;
+    };
+
     /**
      * @brief loss function concept
      */
