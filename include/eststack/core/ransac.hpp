@@ -18,9 +18,9 @@
 // C++ standard library
 #include <cmath>
 #include <limits>
-
-// Eigen library
-#include <Eigen/Dense>
+#include <random>
+#include <algorithm>
+#include <vector>
 
 // ESTstack library
 #include "eststack/concepts.hpp"
@@ -37,30 +37,165 @@ namespace eststack
     namespace core
     {
         /***
-         * @brief RANSAC result
+         * @brief RANdom SAmple Consensus for model fitting
+         * @tparam Model SAmple Consensus model
          */
-        struct RANSACResult
+        template <SACModel Model>
+        class RANSAC
         {
-            RANSACResult(const Eigen::Isometry3d &T = Eigen::Isometry3d::Identity(),
-                         int inlier_count = 0, int iterations = 0,
-                         bool converged = false, double inlier_ratio = 0.0)
-                : T_(T), inlier_count_(inlier_count), iterations_(iterations),
-                  converged_(converged), inlier_ratio_(inlier_ratio) {}
+        public:
+            using PointCloud = typename Model::PointCloud;
+            using PointCloudPtr = typename Model::PointCloudPtr;
+            using PointCloudConstPtr = typename Model::PointCloudConstPtr;
 
             /***
-             * @brief transformation
+             * @brief default constructor
+             * @param probability probability of good fitting in iterations
+             * @param max_iter maximum iterations
              */
-            Eigen::Isometry3d T_;
+            explicit RANSAC(float probability = 0.99f, int max_iter = 10000)
+                : probability_(probability), max_iter_(max_iter), converged_(false)
+            {
+                std::random_device rd;
+                rng_.seed(rd());
+            }
 
             /***
-             * @brief number of inliers
+             * @brief set source cloud
+             * @param source source point cloud
              */
-            int inlier_count_;
+            void setInputSource(const PointCloudConstPtr &source)
+            {
+                source_cloud_ = source;
+            }
 
             /***
-             * @brief number of iterations performed
+             * @brief set target cloud
+             * @param target target point cloud
              */
-            int iterations_;
+            void setInputTarget(const PointCloudConstPtr &target)
+            {
+                target_cloud_ = target;
+            }
+
+            /***
+             * @brief set probability
+             */
+            void setProbability(float probability) noexcept
+            {
+                probability_ = probability;
+            }
+
+            /***
+             * @brief set max iterations
+             */
+            void setMaxIterations(int max_iterations) noexcept
+            {
+                max_iter_ = max_iterations;
+            }
+
+            const Eigen::Isometry3f &getFinalTransformation() const noexcept
+            {
+                return final_transformation_;
+            }
+
+            bool hasConverged() const noexcept
+            {
+                return converged_;
+            }
+
+            /***
+             * @brief run RANSAC optimization
+             */
+            void optimize()
+            {
+                const int cloud_size = source_cloud_->size();
+                if (cloud_size == 0 || cloud_size != target_cloud_->size())
+                {
+                    converged_ = false;
+                    return;
+                }
+
+                const float eps = std::numeric_limits<float>::epsilon();
+
+                std::vector<int> indices(cloud_size);
+                std::iota(indices.begin(), indices.end(), 0);
+
+                Eigen::VectorXf best_model;
+                std::vector<int> best_inliers;
+
+                int iteration = 0;
+                int adaptive_max_iter = max_iter_;
+                int best_inlier_num = 0;
+
+                Model model;
+                int sample_size = model.getSampleSize();
+
+                while (iteration < adaptive_max_iter && iteration < max_iter_)
+                {
+                    /* random sample */
+                    std::vector<int> sample = random_sample(indices, sample_size);
+
+                    /* fit model */
+                    if (!model.fit(sample))
+                    {
+                        ++iteration;
+                        continue;
+                    }
+
+                    /* count inliers */
+                    std::vector<int> inliers = model.countInliers();
+                    int inlier_count = inliers.size();
+
+                    /* update best */
+                    if (inlier_count > best_inlier_num)
+                    {
+                        best_inlier_num = inlier_count;
+                        best_model = model.getBestFitness();
+                        best_inliers = inliers;
+
+                        /* adaptive iteration update */
+                        float frac_inliers = static_cast<float>(inlier_count) / cloud_size;
+                        float p_no_outliers = 1.0f - std::pow(frac_inliers, sample_size);
+                        p_no_outliers = std::max(eps, p_no_outliers);
+                        p_no_outliers = std::min(1.0f - eps, p_no_outliers);
+
+                        if (p_no_outliers < 1.0f)
+                        {
+                            adaptive_max_iter = static_cast<int>(std::log(1.0f - probability_) / std::log(p_no_outliers));
+                            adaptive_max_iter = std::max(adaptive_max_iter, iteration + 1);
+                        }
+                    }
+
+                    iteration++;
+                }
+            }
+
+        private:
+            /***
+             * @brief source cloud
+             */
+            PointCloudConstPtr source_cloud_;
+
+            /***
+             * @brief target cloud
+             */
+            PointCloudConstPtr target_cloud_;
+
+            /***
+             * @brief random number generator
+             */
+            std::mt19937 rng_;
+
+            /***
+             * @brief probability of good fitting in iterations
+             */
+            float probability_;
+
+            /***
+             * @brief maximum iterations
+             */
+            int max_iter_;
 
             /***
              * @brief convergence flag
@@ -68,52 +203,26 @@ namespace eststack
             bool converged_;
 
             /***
-             * @brief ratio of inliers to total points
+             * @brief random sample selection
              */
-            double inlier_ratio_;
-        };
-
-        /***
-         * @brief Random Sample Consensus for model fitting
-         * @tparam model sample consensus model type
-         */
-        template <SACModel model>
-        class RANSAC
-        {
-        public:
-            /***
-             * @brief default constructor
-             * @param max_iter maximum iterations
-             * @param confidence confidence level
-             */
-            explicit RANSAC(int max_iter = 1000, double confidence = 0.99)
-                : max_iter_(max_iter), confidence_(confidence)
+            std::vector<int> random_sample(const std::vector<int> &indices, int s)
             {
+                std::vector<int> sample;
+                sample.reserve(s);
+
+                std::uniform_int_distribution<int> dist(0, indices.size() - 1);
+
+                for (int i = 0; i < s; ++i)
+                {
+                    int idx = dist(rng_);
+                    sample.push_back(indices[idx]);
+                }
+
+                return sample;
             }
-
-            /***
-             * @brief run RANSAC optimization
-             * @param source 3xN source points
-             * @param target 3xN target points
-             * @return RANSACResult
-             */
-            RANSACResult optimize(const Eigen::Matrix3Xd &source, const Eigen::Matrix3Xd &target, )
-            {
-            }
-
-        private:
-            /***
-             * @brief maximum iterations
-             */
-            int max_iter_;
-
-            /***
-             * @brief confidence level
-             */
-            double confidence_;
         };
 
     } // namespace core
 } // namespace eststack
 
-#endif // CORE__RANSAC_HPP
+#endif //! CORE__RANSAC_HPP

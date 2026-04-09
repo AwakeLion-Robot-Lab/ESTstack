@@ -45,9 +45,10 @@ namespace eststack
          */
         struct PCRResult
         {
-            Eigen::Isometry3d best_trans_;
-            double score_;
-            double inliner_fraction_;
+            Eigen::Isometry3f best_transformation_;
+            float score_;
+            float inlier_fraction_;
+            bool converged_;
         };
 
         /***
@@ -59,7 +60,6 @@ namespace eststack
         class BasePCR
         {
         public:
-            using Point = PointT;
             using PointCloud = pcl::PointCloud<PointT>;
             using PointCloudPtr = typename PointCloud::Ptr;
             using PointCloudConstPtr = typename PointCloud::ConstPtr;
@@ -68,7 +68,7 @@ namespace eststack
              * @brief set source cloud
              * @param source source point cloud
              */
-            void setSourceCloud(PointCloudConstPtr source)
+            void setInputSource(const PointCloudConstPtr &source)
             {
                 source_cloud_ = source;
             }
@@ -77,11 +77,14 @@ namespace eststack
              * @brief set target cloud
              * @param target target point cloud
              */
-            void setTargetCloud(PointCloudConstPtr target)
+            void setInputTarget(const PointCloudConstPtr &target)
             {
                 target_cloud_ = target;
             }
 
+            /***
+             * @brief align to get best transformation
+             */
             bool align()
             {
                 return static_cast<Derived *>(this)->alignImpl();

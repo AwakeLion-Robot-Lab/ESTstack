@@ -21,9 +21,8 @@ end
 if has_config("test") then
     add_requires("gtest 1.17.0", {configs = {main = true}})
 end
-add_repositories("awakelion-xmake-repo https://github.com/AwakeLion-Robot-Lab/awakelion-xmake-repo.git")
 add_requires("eigen 5.0.0", "pcl 1.15.1", "manif 0.0.5")
-add_requires("backward-cpp v1.6","awakelion-logger 1.0.2")
+add_requires("backward-cpp v1.6")
 add_requires("tbb", {system = true})                                          
 add_requireconfs("manif.eigen", {override = true})  -- use eigen from xmake package
 
@@ -34,7 +33,7 @@ namespace("fosu-awakelion")
         add_headerfiles("include/eststack/**/*.hpp", {public = true})
 
         -- dependencies
-        add_packages("eigen", "pcl", "manif", "backward-cpp", "awakelion-logger", "tbb", {public = true})
+        add_packages("eigen", "pcl", "manif", "tbb", {public = true})
 
     if has_config("test") then
         for _, file in ipairs(os.files("test/*.cpp")) do
@@ -44,7 +43,7 @@ namespace("fosu-awakelion")
                 set_default(false)
                 add_files(file)
                 add_deps("ESTstack")
-                add_packages("gtest")
+                add_packages("gtest", "backward-cpp")
                 set_rundir("$(projectdir)")
                 add_tests("ESTstack-test", {runargs = {"--gtest_color=yes"}})
         end

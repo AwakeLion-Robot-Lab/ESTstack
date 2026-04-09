@@ -66,17 +66,22 @@ namespace eststack
      */
     template <typename T>
     concept SACModel = requires(T model) {
-        { T::fitSize } -> std::convertible_to<int>;
+        typename T::PointCloud;
+        typename T::PointCloudPtr;
+        typename T::PointCloudConstPtr;
+
+        { model.getSampleSize() } -> std::convertible_to<int>;
+        { model.getBestFitness() } -> std::convertible_to<Eigen::MatrixXf>;
         { model.fit() } -> std::convertible_to<bool>;
-        { model.isInlier() } -> std::convertible_to<bool>;
+        { model.countInliers() } -> std::same_as<std::vector<int>>;
     };
 
     /**
      * @brief loss function concept
      */
     template <typename T>
-    concept LossFunction = requires(T loss, double residual, double scale) {
-        { loss.weight(residual, scale) } -> std::convertible_to<double>;
+    concept LossFunction = requires(T loss, float residual, float scale) {
+        { loss.weight(residual, scale) } -> std::convertible_to<float>;
         { loss.isInlier(residual, scale) } -> std::convertible_to<bool>;
     };
 
@@ -177,8 +182,8 @@ namespace eststack
     template <typename T>
     concept PointCloudRegistration = requires(T pcr) {
         typename T::PointT;
-        { pcr.setTargetCloud(std::declval<typename pcl::PointCloud<typename T::PointT>::ConstPtr>()) } -> std::same_as<void>;
-        { pcr.setSourceCloud(std::declval<typename pcl::PointCloud<typename T::PointT>::ConstPtr>()) } -> std::same_as<void>;
+        { pcr.setInputSource(std::declval<typename pcl::PointCloud<typename T::PointT>::ConstPtr>()) } -> std::same_as<void>;
+        { pcr.setInputTarget(std::declval<typename pcl::PointCloud<typename T::PointT>::ConstPtr>()) } -> std::same_as<void>;
         { pcr.align() } -> std::same_as<bool>;
     };
 }

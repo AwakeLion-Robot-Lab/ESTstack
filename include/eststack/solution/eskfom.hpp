@@ -45,7 +45,7 @@ namespace eststack
          * @note local perturbation on manifold as default
          */
         template <eststack::LieGroupState StateT>
-        class ESKFOM : public BaseKF<ESKFOM<StateT>, StateT>
+        class ESKFOM final : public BaseKF<ESKFOM<StateT>, StateT>
         {
         public:
             EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
@@ -58,6 +58,11 @@ namespace eststack
 
             using Ptr = std::shared_ptr<ESKFOM>;
             using ConstPtr = std::shared_ptr<const ESKFOM>;
+
+            using Base::max_priori_nis_num_;
+            using Base::P_;
+            using Base::priori_nis_;
+            using Base::x_;
 
             /***
              * @brief default constructor

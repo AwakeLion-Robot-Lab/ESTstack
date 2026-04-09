@@ -19,7 +19,6 @@
 #include <cmath>
 #include <limits>
 #include <vector>
-#include <numeric>
 
 // Eigen library
 #include <Eigen/Dense>
@@ -47,19 +46,19 @@ namespace eststack
             /***
              * @brief assign weight for each residual
              */
-            static double weight(double residual, double scale)
+            inline float weight(float residual, float scale)
             {
-                double scale_sq = scale * scale;
-                double res_sq = residual * residual;
+                float scale_sq = scale * scale;
+                float res_sq = residual * residual;
                 return scale_sq / (res_sq + scale_sq);
             }
 
             /***
              * @brief check whether is inlier via residual
              */
-            static bool isInlier(double residual, double scale)
+            inline bool isInlier(float residual, float scale)
             {
-                return std::abs(residual) < 3.0 * scale;
+                return std::abs(residual) < 3.0f * scale;
             }
         };
 
@@ -71,11 +70,11 @@ namespace eststack
             /***
              * @brief assign weight for each residual
              */
-            static double weight(double residual, double scale)
+            inline float weight(float residual, float scale)
             {
-                double abs_res = std::abs(residual);
+                float abs_res = std::abs(residual);
                 if (abs_res <= scale)
-                    return 1.0;
+                    return 1.0f;
                 else
                     return scale / abs_res;
             }
@@ -83,60 +82,18 @@ namespace eststack
             /***
              * @brief check whether is inlier via residual
              */
-            static bool isInlier(double residual, double scale)
+            inline bool isInlier(float residual, float scale)
             {
-                return std::abs(residual) < 3.0 * scale;
+                return std::abs(residual) < 3.0f * scale;
             }
         };
 
         /***
-         * @brief IRLS result
-         */
-        struct IRLSResult
-        {
-            IRLSResult(const Eigen::Isometry3d &T = Eigen::Isometry3d::Identity(), double cost = 0.0, double scale = 0.0,
-                       int inlier_count = 0, int iterations = 0, bool converged = false)
-                : T_(T), cost_(cost), scale_(scale),
-                  inlier_count_(inlier_count), iterations_(iterations), converged_(converged) {}
-
-            /***
-             * @brief transformation
-             */
-            Eigen::Isometry3d T_;
-
-            /***
-             * @brief cost
-             * @details formula: sqrt(new_weight * new_residual) - sqrt(old_weight * old_residual)
-             */
-            double cost_;
-
-            /***
-             * @brief scale for specific loss function
-             */
-            double scale_;
-
-            /***
-             * @brief number of inliers
-             */
-            int inlier_count_;
-
-            /***
-             * @brief number of iterations
-             */
-            int iterations_;
-
-            /***
-             * @brief convergence flag
-             */
-            bool converged_;
-        };
-
-        /***
-         * @brief Iteratively Reweighted Least Squares for robust rigid transformation
+         * @brief Iteratively Reweighted Least Squares for rigid transformation
          * @tparam LossFunc Loss function type
          */
         template <LossFunction LossFunc>
-        class IRLS
+        class RigidIRLS
         {
         public:
             /***
@@ -146,114 +103,162 @@ namespace eststack
              * @param cost_tolerance cost change tolerance
              * @param max_iter maximum iterations
              */
-            explicit IRLS(float decay_factor = 1.3, float min_scale = 1.0,
-                          float cost_tolerance = 0.01, int max_iter = 100)
+            explicit RigidIRLS(float decay_factor = 1.3f, float min_scale = 1.0f,
+                               float cost_tolerance = 0.01f, int max_iter = 100)
                 : decay_factor_(decay_factor), min_scale_(min_scale),
-                  cost_tolerance_(cost_tolerance), max_iter_(max_iter)
+                  cost_tolerance_(cost_tolerance), max_iter_(max_iter),
+                  converged_(false)
             {
             }
 
             /***
-             * @brief run IRLS optimization
-             * @param source 3xN source points
-             * @param target 3xN target points
-             * @return IRLSResult
+             * @brief set input source points
+             * @param source 3xN source point cloud
              */
-            IRLSResult optimize(const Eigen::Matrix3Xd &source, const Eigen::Matrix3Xd &target)
+            void setInputSource(const Eigen::Matrix3Xf &source)
+            {
+                source_ = source;
+            }
+
+            /***
+             * @brief set input target points
+             * @param target 3xN target point cloud
+             */
+            void setInputTarget(const Eigen::Matrix3Xf &target)
+            {
+                target_ = target;
+            }
+
+            void setMaxIterations(int max_iter) noexcept
+            {
+                max_iter_ = max_iter;
+            }
+
+            /***
+             * @brief get final transformation matrix
+             * @return const reference to final transformation
+             */
+            const Eigen::Isometry3f &getFinalTransformation() const noexcept
+            {
+                return final_transformation_;
+            }
+
+            /***
+             * @brief check if optimization converged
+             * @return true if converged
+             */
+            bool hasConverged() const noexcept
+            {
+                return converged_;
+            }
+
+            /***
+             * @brief run IRLS optimization
+             */
+            void optimize()
             {
                 /* check source-target dimensions */
-                const int N = static_cast<int>(source.cols());
-                if (N == 0 || N != target.cols())
-                    return IRLSResult();
-
-                /* initialization */
-                Eigen::VectorXi inlier_indices = Eigen::VectorXi::LinSpaced(N, 0, N - 1);
-                Eigen::VectorXd weights = Eigen::VectorXd::Ones(N);
-                Eigen::Isometry3d trans = Eigen::Isometry3d::Identity();
-                Eigen::Matrix3Xd source_current = source;
-                Eigen::Matrix3Xd target_current = target;
-
-                double scale = 0.0;
-                double prev_cost = std::numeric_limits<double>::max();
-
-                for (int iter = 1; iter <= max_iter_; ++iter)
+                const int N = static_cast<int>(source_.cols());
+                if (N == 0 || N != target_.cols())
                 {
-                    const int inlier_num = inlier_indices.size();
-
-                    /***
-                     * select inlier points via block operations
-                     * reference: https://github.com/ShiPC-AI/TCF/blob/main/registration/irls_welsch.cpp#L16
-                     */
-                    Eigen::Matrix3Xd source_inlier = source_current(Eigen::all, inlier_indices);
-                    Eigen::Matrix3Xd target_inlier = target_current(Eigen::all, inlier_indices);
-
-                    /* compute transformation via weighted kabsch */
-                    trans = weighted_kabsch(source_inlier, target_inlier, weights.head(inlier_num));
-                    const Eigen::Matrix3d R = trans.linear();
-                    const Eigen::Vector3d t = trans.translation();
-
-                    /* compute initial residuals */
-                    const Eigen::Matrix3Xd fit = (R * source_inlier).colwise() + t;
-                    const Eigen::VectorXd residuals = (fit - target_inlier).colwise().norm();
-
-                    /* initialize scale on first iteration */
-                    if (iter == 1)
-                    {
-                        scale = residuals.maxCoeff();
-                        /* early convergence, just return */
-                        if (scale < min_scale_)
-                            return IRLSResult(trans, 0.0, scale, inlier_num, 1, true);
-                    }
-
-                    /* compute weighted cost */
-                    const double cost = weights.head(inlier_num).cwiseProduct(residuals.cwiseProduct(residuals)).sum();
-
-                    /* check convergence */
-                    if (iter > 1)
-                    {
-                        if (std::abs(cost - prev_cost) < cost_tolerance_ || scale < min_scale_)
-                            return IRLSResult(trans, cost, scale, inlier_num, iter, true);
-                    }
-                    prev_cost = cost;
-
-                    /* update inliers via scale of loss function */
-                    Eigen::VectorXi new_inliers(inlier_num);
-                    int new_inlier_num = 0;
-                    for (int i = 0; i < inlier_num; ++i)
-                    {
-                        if (LossFunc::isInlier(residuals(i), scale))
-                            new_inliers(new_inlier_num++) = inlier_indices(i);
-                    }
-
-                    /* no inliers remain, poor fit */
-                    if (new_inlier_num == 0)
-                        return IRLSResult(trans, prev_cost, scale, 0, iter, false);
-
-                    /* resize and update inlier indices */
-                    inlier_indices.conservativeResize(new_inlier_num);
-                    inlier_indices = new_inliers.head(new_inlier_num);
-
-                    /* update weights via loss function */
-                    weights.conservativeResize(new_inlier_num);
-                    for (int i = 0; i < new_inlier_num; ++i)
-                    {
-                        weights(i) = LossFunc::weight(residuals(i), scale);
-                    }
-
-                    /* update scale for next iteration */
-                    scale /= decay_factor_;
+                    converged_ = false;
+                    return;
                 }
 
-                /***
-                 * NOTE that if not converge until max_iter_,
-                 * scale must multiply by decay factor to back in,
-                 * because there is no more next iteration!
-                 */
-                return IRLSResult(trans, prev_cost, scale * decay_factor_,
-                                  inlier_indices.size(), max_iter_, false);
+                /* initialization */
+                Eigen::Isometry3f trans = Eigen::Isometry3f::Identity();
+                Eigen::Matrix3Xf source_current = source_;
+                Eigen::Matrix3Xf target_current = target_;
+                Eigen::VectorXf weights = Eigen::VectorXf::Ones(N);
+                Eigen::VectorXi inlier_indices = Eigen::VectorXi::LinSpaced(N, 0, N - 1);
+
+                float scale = 0.0f;
+                float prev_cost = std::numeric_limits<float>::max();
+
+                LossFunc loss_func;
+
+                for (int iter = 1; iter <= max_iter_; iter++)
+                {
+                    /* extract inlier points */
+                    Eigen::Matrix3Xf source_temp = source_current(Eigen::all, inlier_indices);
+                    Eigen::Matrix3Xf target_temp = target_current(Eigen::all, inlier_indices);
+                    source_current = source_temp;
+                    target_current = target_temp;
+
+                    /* compute transform using weighted Kabsch */
+                    trans = weighted_kabsch(source_current, target_current, weights);
+                    Eigen::Matrix3f R = trans.linear();
+                    Eigen::Vector3f t = trans.translation();
+
+                    /* compute residuals */
+                    Eigen::Matrix3Xf fit = (R * source_current).colwise() + t;
+                    Eigen::VectorXf residuals = (fit - target_current).colwise().norm().transpose();
+
+                    /* initialize scale on first iteration as max residual */
+                    if (iter == 1)
+                    {
+                        scale = residuals.cwiseAbs().maxCoeff();
+                        /* if convergence in loop 1, just return */
+                        if (scale < min_scale_)
+                        {
+                            final_transformation_ = trans;
+                            converged_ = true;
+                            return;
+                        }
+                    }
+
+                    /* compute current cost */
+                    float cost = weights.cwiseProduct(residuals.array().square().matrix()).sum();
+
+                    /* update next inlier indices via loss function */
+                    Eigen::VectorXi flags(residuals.size());
+                    for (int i = 0; i < residuals.size(); i++)
+                    {
+                        flags(i) = loss_func.isInlier(residuals(i), scale) ? 1 : 0;
+                    }
+                    inlier_indices = getNonZeroColumnIndicesFromVector(flags);
+
+                    /* update next weights via loss function */
+                    Eigen::VectorXf inlier_residuals = residuals(inlier_indices);
+                    weights.resize(inlier_residuals.size());
+                    for (int j = 0; j < inlier_residuals.size(); j++)
+                    {
+                        weights(j) = loss_func.weight(inlier_residuals(j), scale);
+                    }
+
+                    /* check convergence */
+                    float cost_diff = std::abs(cost - prev_cost);
+                    scale = scale / decay_factor_;
+                    prev_cost = cost;
+
+                    if (cost_diff < cost_tolerance_ || scale < min_scale_)
+                    {
+                        final_transformation_ = trans;
+                        converged_ = true;
+                        return;
+                    }
+                }
+
+                final_transformation_ = trans;
+                converged_ = false;
             }
 
         private:
+            /***
+             * @brief 3xN source points
+             */
+            Eigen::Matrix3Xf source_;
+
+            /***
+             * @brief 3xN target points
+             */
+            Eigen::Matrix3Xf target_;
+
+            /***
+             * @brief final transformation result
+             */
+            Eigen::Isometry3f final_transformation_;
+
             /***
              * @brief decay factor for scale update
              */
@@ -273,6 +278,29 @@ namespace eststack
              * @brief maximum iterations
              */
             int max_iter_;
+
+            /***
+             * @brief convergence flag
+             */
+            bool converged_;
+
+            /***
+             * @brief get non-zero column indices from vector
+             * @param flags judgement
+             * @return vector with indices of non-zero elements
+             */
+            inline Eigen::VectorXi getNonZeroColumnIndicesFromVector(const Eigen::VectorXi &flags)
+            {
+                int count = flags.count();
+                Eigen::VectorXi nonzero_column(count);
+                int idx = 0;
+                for (int i = 0; i < flags.size(); ++i)
+                {
+                    if (flags(i) > 0)
+                        nonzero_column(idx++) = i;
+                }
+                return nonzero_column;
+            }
         };
 
     } // namespace core
