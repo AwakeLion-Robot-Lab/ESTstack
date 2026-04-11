@@ -66,14 +66,14 @@ namespace eststack
      */
     template <typename T>
     concept SACModel = requires(T model) {
-        typename T::PointCloud;
-        typename T::PointCloudPtr;
-        typename T::PointCloudConstPtr;
-
+        { model.setInputSource(std::declval<const Eigen::Matrix3Xf &>()) } -> std::same_as<void>;
+        { model.setInputTarget(std::declval<const Eigen::Matrix3Xf &>()) } -> std::same_as<void>;
+        { model.setInlierThreshold(std::declval<float>()) } -> std::same_as<void>;
+        { model.getCloudSize() } -> std::convertible_to<int>;
         { model.getSampleSize() } -> std::convertible_to<int>;
-        { model.getBestFitness() } -> std::convertible_to<Eigen::MatrixXf>;
-        { model.fit() } -> std::convertible_to<bool>;
-        { model.countInliers() } -> std::same_as<std::vector<int>>;
+        { model.getModelSize() } -> std::convertible_to<int>;
+        { model.selectInliers(std::declval<const Eigen::VectorXf &>()) } -> std::same_as<const std::vector<int> &>;
+        { model.fit(std::declval<const std::vector<int> &>(), std::declval<Eigen::VectorXf &>()) } -> std::same_as<bool>;
     };
 
     /**
@@ -91,8 +91,8 @@ namespace eststack
     template <typename T>
     concept EstProblem = requires(T prob) {
         { prob.isInitialized() } -> std::convertible_to<bool>;
-        { prob.setState(std::declval<typename T::State>()) } -> std::same_as<void>;
-        { prob.getState() } -> std::same_as<const typename T::State &>;
+        { prob.setState(std::declval<const typename T::State &>()) } -> std::same_as<void>;
+        { prob.getState() } -> std::same_as<typename T::State>;
         { prob.setSolution(std::declval<typename T::Solution>()) } -> std::same_as<void>;
         { prob.run() } -> std::same_as<bool>;
     };

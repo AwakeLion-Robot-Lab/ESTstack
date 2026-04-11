@@ -165,9 +165,9 @@ namespace eststack
          * @param weights weights of each point
          * @return transformation from source to target
          */
-        Eigen::Isometry3f weighted_kabsch(const pcl::PointCloud<pcl::PointXYZ>::Ptr &source,
-                                          const pcl::PointCloud<pcl::PointXYZ>::Ptr &target,
-                                          const Eigen::VectorXf &weights)
+        Eigen::Isometry3f weightedKabsch(const pcl::PointCloud<pcl::PointXYZ>::Ptr &source,
+                                         const pcl::PointCloud<pcl::PointXYZ>::Ptr &target,
+                                         const Eigen::VectorXf &weights)
         {
             const size_t N = source->size();
             if (N == 0)
@@ -181,7 +181,7 @@ namespace eststack
             if (weight_sum < std::numeric_limits<float>::epsilon())
             {
                 Eigen::VectorXf uniform_weights = Eigen::VectorXf::Ones(N) / N;
-                return weighted_kabsch(source, target, uniform_weights);
+                return weightedKabsch(source, target, uniform_weights);
             }
 
             Eigen::VectorXf w = weights / weight_sum;
@@ -243,9 +243,7 @@ namespace eststack
          * @details each column of `source` and `target` is a point, and the order of points should be consistent between two sets
          * @return transformation from source to target
          */
-        Eigen::Isometry3f weighted_kabsch(const Eigen::Matrix3Xf &source,
-                                          const Eigen::Matrix3Xf &target,
-                                          const Eigen::VectorXf &weights)
+        Eigen::Isometry3f weightedKabsch(const Eigen::Matrix3Xf &source, const Eigen::Matrix3Xf &target, const Eigen::VectorXf &weights)
         {
             const int N = source.cols();
             if (N == 0 || N != target.cols())
@@ -257,7 +255,7 @@ namespace eststack
             if (weight_sum < std::numeric_limits<float>::epsilon())
             {
                 Eigen::VectorXf uniform_weights = Eigen::VectorXf::Ones(N) / N;
-                return weighted_kabsch(source, target, uniform_weights);
+                return weightedKabsch(source, target, uniform_weights);
             }
 
             /* normalized weights */

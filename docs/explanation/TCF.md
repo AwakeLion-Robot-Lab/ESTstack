@@ -1,5 +1,7 @@
 # TCF Explanation
 
+## Paper Explanation
+
 | 标题翻译 |                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 作者     | Pengcheng Shi; Shaocheng Yan; Yilin Xiao; Xinyi Liu; Yongjun Zhang; Jiayuan Li                                                                                                                                                                                                                                                                                                                                                                 |
@@ -43,3 +45,66 @@ step8：
 ***
 
 个人观点：感觉可以优化的点在于Kabsch、衰减因子$\mu$和最小能量阈值$\mathbf{e}_{\text{min}}$
+
+## Code Explanation
+
+source code refer to [TCF github](https://github.com/ShiPC-AI/TCF).
+
+### One-Stage SAC Model
+
+While I read the paper, I found this words:
+
+> Our method automatically adjusts the noise bounds as the noise level increases, ensuring the inliers continue to meet the criteria. Thus, it remains effective despite higher noise.
+
+there's nothing further in paper but in source code:
+
+```C++
+Matf3D src = inliers.topRows(3);
+Matf3D dst = inliers.bottomRows(3);
+
+Eigen::MatrixXf src_dist_matrix(src.cols(), src.cols());
+Eigen::MatrixXf dst_dist_matrix(dst.cols(), dst.cols());
+computeDistanceMatrix(src, src_dist_matrix);
+computeDistanceMatrix(dst, dst_dist_matrix);
+Eigen::MatrixXf Z = (src_dist_matrix - dst_dist_matrix)array().abs();
+Eigen::MatrixXi F = (Z.array() < t2).cast<int>();
+inlier_size = std::ceil(std::sqrt(F.sum()));
+
+Mati1D F_colwise_sum = F.colwise().sum();
+std::vector<int> sorted_column_indices_total;
+sortRowVectorDescending(F_colwise_sum, sorted_column_indices_total);
+```
+
+obviously, I could not figure it out at the first glance since I never learnt graph theory at all, even did not know this thing lays on field of graph theory. so I just call AI to explain, as it says:
+
+> 1. 把点变成"朋友关系"                                                        
+> 你有一堆候选点，怀疑其中一些是真内点，一些是外点。                                           
+> 规则：如果两个点之间的"边长一致性"成立（Z < 2t），就称它们是朋友。           
+> 2. F 就是"朋友关系表"                                                        
+> F 是一个方阵：                                                               
+> - F(i, j) = 1：点 i 和点 j 是朋友
+> - F(i, j) = 0：不是朋友                                                      
+> 因为任何点和它自己总是朋友（距离差为 0），所以对角线全是 1。                 
+> 3. 真内点形成了一个"小圈子"                                                  
+> 刚体变换保持点间距离不变。所以：                                             
+> - 真内点之间：任意两个都是朋友 → 它们形成了一个完全连接的密集小圈子
+> - 外点：它和大多数人的距离关系是乱的，所以朋友很少                          
+> 你不需要会图论，只需要懂这个画面：真内点互相都是朋友，外点基本没朋友。       
+> 4. 怎么估计"小圈子有多少人"                                                  
+> 如果小圈子里有 k 个人，每个人和其余 k-1                                      
+> 个人都是朋友，再加上自己和自己是朋友：
+> - 小圈子里总共有大约 k × k 个 1                                              
+> 严格说应该是 k²，因为 $k$ 个人每人有 $k$ 个朋友包括自己）
+> 而外点贡献的 1 很少，基本可以忽略。                                          
+> 所以：                                                                       
+> $$\text{F 中 1 的总数} \approx k^2$$
+> 反过来：
+> $$k \approx \sqrt{\text{F 中 1 的总数}}$$                                    
+> 这就是`sqrt(F.sum())`的直觉——它在快速估算真内点有多少人。                    
+> 5. 排序是干什么的                                                            
+> F 的列和表示：某个点一共有多少个朋友。                                      
+> - 真内点：朋友多（因为在小圈子里）                                           
+> - 外点：朋友少  
+> 按"朋友数量"从高到低排序，取前 k 个，就是最可能是真内点的那批人。
+
+very handy to understand, don't it?

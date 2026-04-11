@@ -21,11 +21,13 @@
 #include <vector>
 
 // Eigen library
+#include <Eigen/Core>
 #include <Eigen/Dense>
 
 // ESTstack library
 #include "eststack/concepts.hpp"
 #include "eststack/core/kabsch.hpp"
+#include "eststack/eigen_traits.hpp"
 
 /***
  * @brief An algorithm set focus on state estimation
@@ -43,6 +45,9 @@ namespace eststack
          */
         struct CauchyLoss
         {
+            using Ptr = std::shared_ptr<CauchyLoss>;
+            using ConstPtr = std::shared_ptr<const CauchyLoss>;
+
             /***
              * @brief assign weight for each residual
              */
@@ -67,6 +72,9 @@ namespace eststack
          */
         struct HuberLoss
         {
+            using Ptr = std::shared_ptr<HuberLoss>;
+            using ConstPtr = std::shared_ptr<const HuberLoss>;
+
             /***
              * @brief assign weight for each residual
              */
@@ -96,6 +104,9 @@ namespace eststack
         class RigidIRLS
         {
         public:
+            using LossPtr = typename LossFunc::Ptr;
+            using LossConstPtr = typename LossFunc::ConstPtr;
+
             /***
              * @brief default constructor
              * @param decay_factor scale decay factor
@@ -112,7 +123,16 @@ namespace eststack
             }
 
             /***
-             * @brief set input source points
+             * @brief set loss function
+             * @param loss_func loss function
+             */
+            void setLossFunction(const LossConstPtr &loss_func) noexcept
+            {
+                loss_func_ = loss_func;
+            }
+
+            /***
+             * @brief set input source point cloud
              * @param source 3xN source point cloud
              */
             void setInputSource(const Eigen::Matrix3Xf &source)
@@ -121,7 +141,7 @@ namespace eststack
             }
 
             /***
-             * @brief set input target points
+             * @brief set input target point cloud
              * @param target 3xN target point cloud
              */
             void setInputTarget(const Eigen::Matrix3Xf &target)
@@ -129,6 +149,10 @@ namespace eststack
                 target_ = target;
             }
 
+            /***
+             * @brief set maximum iterations
+             * @param max_iter maximum iterations
+             */
             void setMaxIterations(int max_iter) noexcept
             {
                 max_iter_ = max_iter;
@@ -157,10 +181,19 @@ namespace eststack
              */
             void optimize()
             {
+                /* check loss function */
+                if (loss_func_ == nullptr)
+                {
+                    final_transformation_ = Eigen::Isometry3f::Identity();
+                    converged_ = false;
+                    return;
+                }
+
                 /* check source-target dimensions */
                 const int N = static_cast<int>(source_.cols());
                 if (N == 0 || N != target_.cols())
                 {
+                    final_transformation_ = Eigen::Isometry3f::Identity();
                     converged_ = false;
                     return;
                 }
@@ -175,18 +208,24 @@ namespace eststack
                 float scale = 0.0f;
                 float prev_cost = std::numeric_limits<float>::max();
 
-                LossFunc loss_func;
-
                 for (int iter = 1; iter <= max_iter_; iter++)
                 {
-                    /* extract inlier points */
-                    Eigen::Matrix3Xf source_temp = source_current(Eigen::all, inlier_indices);
-                    Eigen::Matrix3Xf target_temp = target_current(Eigen::all, inlier_indices);
+                    /***
+                     * extract inlier points
+                     * NOTE that source_current(Eigen::placeholders::all, inlier_indices) is slicing operation in Eigen,
+                     * it means select all rows but specfic column that are in inlier_indices
+                     * e.g. if source_current is 3x100 and inlier_indices is [0, 2, 5],
+                     * then it turns out to be 3x3 matrix consisting of columns 0, 2, 5 of `source_current`
+                     * slicing operation can refer to https://zhuanlan.zhihu.com/p/531476504
+                     * also see `model/sac/tcf_sac_model.hpp`
+                     */
+                    Eigen::Matrix3Xf source_temp = source_current(Eigen::placeholders::all, inlier_indices);
+                    Eigen::Matrix3Xf target_temp = target_current(Eigen::placeholders::all, inlier_indices);
                     source_current = source_temp;
                     target_current = target_temp;
 
-                    /* compute transform using weighted Kabsch */
-                    trans = weighted_kabsch(source_current, target_current, weights);
+                    /* compute transform via weighted kabsch */
+                    trans = weightedKabsch(source_current, target_current, weights);
                     Eigen::Matrix3f R = trans.linear();
                     Eigen::Vector3f t = trans.translation();
 
@@ -214,23 +253,24 @@ namespace eststack
                     Eigen::VectorXi flags(residuals.size());
                     for (int i = 0; i < residuals.size(); i++)
                     {
-                        flags(i) = loss_func.isInlier(residuals(i), scale) ? 1 : 0;
+                        flags(i) = loss_func_->isInlier(residuals(i), scale) ? 1 : 0;
                     }
-                    inlier_indices = getNonZeroColumnIndicesFromVector(flags);
+                    inlier_indices = eststack::getNonZeroColumnIndicesFromVector(flags);
 
                     /* update next weights via loss function */
                     Eigen::VectorXf inlier_residuals = residuals(inlier_indices);
                     weights.resize(inlier_residuals.size());
                     for (int j = 0; j < inlier_residuals.size(); j++)
                     {
-                        weights(j) = loss_func.weight(inlier_residuals(j), scale);
+                        weights(j) = loss_func_->weight(inlier_residuals(j), scale);
                     }
 
-                    /* check convergence */
+                    /* calculate scale and previous cost for NEXT iteration, not for now! */
                     float cost_diff = std::abs(cost - prev_cost);
                     scale = scale / decay_factor_;
                     prev_cost = cost;
 
+                    /* check convergence */
                     if (cost_diff < cost_tolerance_ || scale < min_scale_)
                     {
                         final_transformation_ = trans;
@@ -239,18 +279,24 @@ namespace eststack
                     }
                 }
 
+                /* no more iteration, had to finish */
                 final_transformation_ = trans;
                 converged_ = false;
             }
 
         private:
             /***
-             * @brief 3xN source points
+             * @brief loss function
+             */
+            LossConstPtr loss_func_;
+
+            /***
+             * @brief 3xN source point cloud
              */
             Eigen::Matrix3Xf source_;
 
             /***
-             * @brief 3xN target points
+             * @brief 3xN target point cloud
              */
             Eigen::Matrix3Xf target_;
 
@@ -283,24 +329,6 @@ namespace eststack
              * @brief convergence flag
              */
             bool converged_;
-
-            /***
-             * @brief get non-zero column indices from vector
-             * @param flags judgement
-             * @return vector with indices of non-zero elements
-             */
-            inline Eigen::VectorXi getNonZeroColumnIndicesFromVector(const Eigen::VectorXi &flags)
-            {
-                int count = flags.count();
-                Eigen::VectorXi nonzero_column(count);
-                int idx = 0;
-                for (int i = 0; i < flags.size(); ++i)
-                {
-                    if (flags(i) > 0)
-                        nonzero_column(idx++) = i;
-                }
-                return nonzero_column;
-            }
         };
 
     } // namespace core

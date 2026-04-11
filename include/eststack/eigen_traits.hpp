@@ -158,6 +158,24 @@ namespace eststack
 
     //@TODO: add Posteriori CRLB to check whether kf converge
 
+    /***
+     * @brief get non-zero column indices from vector
+     * @param flags judgement
+     * @return vector with indices of non-zero elements
+     */
+    inline Eigen::VectorXi getNonZeroColumnIndicesFromVector(const Eigen::VectorXi &flags)
+    {
+        int count = flags.count();
+        Eigen::VectorXi nonzero_column(count);
+        int idx = 0;
+        for (int i = 0; i < flags.size(); ++i)
+        {
+            if (flags(i) > 0)
+                nonzero_column(idx++) = i;
+        }
+        return nonzero_column;
+    }
+
 } // namespace eststack
 
 #endif //! ESTSTACK__EIGEN_TRAITS_HPP

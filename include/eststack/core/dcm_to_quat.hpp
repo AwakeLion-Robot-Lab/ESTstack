@@ -53,9 +53,9 @@ namespace eststack
             }
             else
             {
-                /* if DCM is ill-conditioned seriously, just throw an error */
+                /* if DCM is ill-conditioned seriously, return a default quaternion */
                 if (getConditionNumber(dcm) > 1e5)
-                    throw std::invalid_argument("DCM is too close to singular, cannot extract a reliable quaternion!");
+                    return Eigen::Quaterniond::Identity();
 
                 /* if DCM is not orthogonal but well-conditioned, use the robust method */
                 return bar_itzhack(dcm);

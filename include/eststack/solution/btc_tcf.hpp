@@ -37,7 +37,7 @@ namespace eststack
     namespace solution
     {
         template <typename PointT>
-        class BTC_TCF : public BasePCR<BTC_TCF<PointT>, PointT>
+        class BTC_TCF final : public BasePCR<BTC_TCF<PointT>, PointT>
         {
         public:
             using Base = BasePCR<BTC_TCF<PointT>, PointT>;
