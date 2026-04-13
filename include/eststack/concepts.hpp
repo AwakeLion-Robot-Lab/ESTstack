@@ -18,6 +18,7 @@
 // C++ standard library
 #include <concepts>
 #include <type_traits>
+#include <vector>
 
 // Eigen library
 #include <Eigen/Dense>
@@ -72,7 +73,7 @@ namespace eststack
         { model.getCloudSize() } -> std::convertible_to<int>;
         { model.getSampleSize() } -> std::convertible_to<int>;
         { model.getModelSize() } -> std::convertible_to<int>;
-        { model.selectInliers(std::declval<const Eigen::VectorXf &>()) } -> std::same_as<const std::vector<int> &>;
+        { model.selectInliers(std::declval<const Eigen::VectorXf &>()) } -> std::same_as<std::vector<int>>;
         { model.fit(std::declval<const std::vector<int> &>(), std::declval<Eigen::VectorXf &>()) } -> std::same_as<bool>;
     };
 

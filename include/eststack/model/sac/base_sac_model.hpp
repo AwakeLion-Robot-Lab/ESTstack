@@ -105,7 +105,7 @@ namespace eststack
              * @brief select inliers
              * @param[in] coeffs model coefficients
              */
-            const std::vector<int> &selectInliers(const Eigen::VectorXf &coeffs) const
+            std::vector<int> selectInliers(const Eigen::VectorXf &coeffs) const
             {
                 return static_cast<const Derived *>(this)->selectInliersImpl(coeffs);
             }

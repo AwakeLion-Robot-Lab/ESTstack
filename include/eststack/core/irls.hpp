@@ -225,7 +225,7 @@ namespace eststack
                     target_current = target_temp;
 
                     /* compute transform via weighted kabsch */
-                    trans = weightedKabsch(source_current, target_current, weights);
+                    trans = eststack::core::weightedKabsch(source_current, target_current, weights);
                     Eigen::Matrix3f R = trans.linear();
                     Eigen::Vector3f t = trans.translation();
 

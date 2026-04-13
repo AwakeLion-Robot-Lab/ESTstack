@@ -18,9 +18,15 @@
 // C++ standard library
 #include <cmath>
 #include <limits>
+#include <numeric>
 #include <random>
 #include <algorithm>
 #include <vector>
+
+// OpenMP library
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 // ESTstack library
 #include "eststack/concepts.hpp"
@@ -39,6 +45,7 @@ namespace eststack
         /***
          * @brief RANdom SAmple Consensus for model fitting
          * @tparam Model SAmple Consensus model
+         * @details refer to [PCL RANSAC](https://pointclouds.org/documentation/ransac_8hpp_source.html)
          */
         template <SACModel Model>
         class RANSAC
@@ -132,61 +139,97 @@ namespace eststack
                 }
 
                 /* initialization */
-                Eigen::VectorXf model_coeffs(model_->getModelSize());
                 int best_inliers_num = 0;
+                int iter = 0;
                 int adaptive_max_iter = max_iter_;
+                unsigned skipped_count = 0;
+                const unsigned max_skip = static_cast<unsigned>(max_iter_) * 10;
+
+                shuffled_indices_.resize(cloud_size);
+                std::iota(shuffled_indices_.begin(), shuffled_indices_.end(), 0);
 
                 /* RANSAC loop */
-                for (int iter = 0; iter < adaptive_max_iter; iter++)
+#pragma omp parallel shared(best_inliers_num, adaptive_max_iter, iter, skipped_count)
                 {
-                    /* get random samples in specific number */
-                    std::vector<int> samples = getSamples(sample_size, cloud_size);
-
-                    /* check fitting status */
-                    if (!model_->fit(samples, model_coeffs))
-                        continue;
-
-                    /* select inliers for this iteration */
-                    std::vector<int> inliers = model_->selectInliers(model_coeffs);
-                    int inliers_num = static_cast<int>(inliers.size());
-                    /* update best inliers if better than last time */
-                    if (inliers_num > best_inliers_num)
+                    while (true)
                     {
-                        best_inliers_num = inliers_num;
-                        best_inliers_ = std::move(inliers);
-                        best_fitness_ = model_coeffs;
-
-                        /* update adaptive maximum iterations */
-                        double inlier_fraction = static_cast<double>(inliers_num) / cloud_size;
-                        double p_outliers = 1.0 - std::pow(inlier_fraction, sample_size);
-                        /* avoid -inf */
-                        p_outliers = std::max(std::numeric_limits<double>::epsilon(), p_outliers);
-                        /* avoid 0 */
-                        p_outliers = std::min(1.0 - std::numeric_limits<double>::epsilon(), p_outliers);
-
-                        /* if probability of at least one outlier < 1.0, update */
-                        if (p_outliers < 1.0)
+                        /* get random samples in specific number */
+                        std::vector<int> samples;
+#pragma omp critical(samples)
                         {
-                            adaptive_max_iter = static_cast<int>(std::ceil(std::log(1.0 - probability_) / std::log(p_outliers)));
-                            /***
-                             * if inlier_fraction is close to 0, adaptive_max_iter become very large
-                             * so constrain the upper bound is max_iter_ to avoid infinite loop
-                             */
-                            adaptive_max_iter = std::min(max_iter_, adaptive_max_iter);
-                            /***
-                             * samely, if inlier_fraction is close to 1, adaptive_max_iter become very small
-                             * so constrain the lower bound is 1 to avoid zero iterations
-                             * this can provide at least one more iteration
-                             */
-                            adaptive_max_iter = std::max(adaptive_max_iter, iter + 1);
+                            samples = getSamples(sample_size);
                         }
+
+                        /* check fitting status */
+                        Eigen::VectorXf model_coeffs(model_->getModelSize());
+                        if (!model_->fit(samples, model_coeffs))
+                        {
+                            unsigned skipped_temp;
+#pragma omp atomic capture
+                            skipped_temp = ++skipped_count;
+                            if (skipped_temp < max_skip)
+                                continue;
+                            else
+                                break;
+                        }
+
+                        /* select inliers for this iteration */
+                        std::vector<int> inliers = model_->selectInliers(model_coeffs);
+                        int inliers_num = static_cast<int>(inliers.size());
+
+                        int best_inliers_num_local;
+#pragma omp atomic read
+                        best_inliers_num_local = best_inliers_num;
+
+                        /* update best inliers if better than last time */
+                        if (inliers_num > best_inliers_num_local)
+                        {
+#pragma omp critical(update)
+                            {
+                                if (inliers_num > best_inliers_num)
+                                {
+                                    best_inliers_num = inliers_num;
+                                    best_inliers_ = inliers;
+                                    best_fitness_ = model_coeffs;
+
+                                    /* update adaptive maximum iterations */
+                                    double inlier_fraction = static_cast<double>(inliers_num) / cloud_size;
+                                    double p_outliers = 1.0 - std::pow(inlier_fraction, sample_size);
+                                    /* avoid -inf */
+                                    p_outliers = std::max(std::numeric_limits<double>::epsilon(), p_outliers);
+                                    /* avoid 0 */
+                                    p_outliers = std::min(1.0 - std::numeric_limits<double>::epsilon(), p_outliers);
+
+                                    /* if probability of at least one outlier < 1.0, update */
+                                    if (p_outliers < 1.0)
+                                    {
+                                        adaptive_max_iter = static_cast<int>(std::ceil(std::log(1.0 - probability_) / std::log(p_outliers)));
+                                        /***
+                                         * if inlier_fraction is close to 0, adaptive_max_iter become very large
+                                         * so constrain the upper bound is max_iter_ to avoid infinite loop
+                                         */
+                                        adaptive_max_iter = std::min(max_iter_, adaptive_max_iter);
+                                    }
+                                }
+                            }
+                        }
+
+                        /* check iteration at last for convergence */
+                        int iter_local, adaptive_max_iter_local;
+
+#pragma omp atomic capture
+                        iter_local = ++iter;
+#pragma omp atomic read
+                        adaptive_max_iter_local = adaptive_max_iter;
+
+                        if (iter_local > adaptive_max_iter_local || iter_local > max_iter_)
+                            break;
                     }
                 }
 
                 /* after get the most inliers set, fit model finally to get best parameter */
-                if (best_inliers_num > 0)
+                if (best_inliers_num > 0 && model_->fit(best_inliers_, best_fitness_))
                 {
-                    model_->fit(best_inliers_, best_fitness_);
                     converged_ = true;
                 }
                 else
@@ -202,14 +245,19 @@ namespace eststack
             ModelPtr model_;
 
             /***
+             * @brief best fitness of the model
+             */
+            Eigen::VectorXf best_fitness_;
+
+            /***
              * @brief random generator
              */
             std::mt19937 rng_;
 
             /***
-             * @brief best fitness of the model
+             * @brief shuffled indices for random sampling
              */
-            Eigen::VectorXf best_fitness_;
+            std::vector<int> shuffled_indices_;
 
             /***
              * @brief best inliers of the model fitting
@@ -236,13 +284,18 @@ namespace eststack
              * @param sample_size number of samples to fit
              * @param cloud_size size of the input point cloud
              */
-            std::vector<int> getSamples(int sample_size, int cloud_size)
+            std::vector<int> getSamples(int sample_size)
             {
-                std::vector<int> indices(cloud_size);
-                std::iota(indices.begin(), indices.end(), 0);
-                std::vector<int> samples;
-                samples.reserve(sample_size);
-                std::sample(indices.begin(), indices.end(), std::back_inserter(samples), sample_size, rng_);
+                std::vector<int> samples(sample_size);
+
+                std::size_t index_size = shuffled_indices_.size();
+                for (std::size_t i = 0; i < sample_size; ++i)
+                {
+                    std::uniform_int_distribution<std::size_t> dist(i, index_size - 1);
+                    std::swap(shuffled_indices_[i], shuffled_indices_[dist(rng_)]);
+                }
+                std::copy(shuffled_indices_.cbegin(), shuffled_indices_.cbegin() + sample_size, samples.begin());
+
                 return samples;
             }
         };
