@@ -20,15 +20,17 @@
 #include <cmath>
 #include <numeric>
 #include <vector>
+#include <memory>
 
 // Eigen library
 #include <Eigen/Core>
 #include <Eigen/Dense>
 
 // ESTstack library
-#include "eststack/eigen_traits.hpp"
 #include "eststack/model/sac/base_sac_model.hpp"
+#include "eststack/core/dcm_to_quat.hpp"
 #include "eststack/core/kabsch.hpp"
+#include "eststack/eigen_traits.hpp"
 
 /***
  * @brief An algorithm set focus on state estimation
@@ -48,15 +50,18 @@ namespace eststack
         class OnePtSACModel final : public BaseSACModel<OnePtSACModel>
         {
         public:
+            using Ptr = std::shared_ptr<OnePtSACModel>;
+            using ConstPtr = std::shared_ptr<const OnePtSACModel>;
+
             /***
              * @brief default constructor
              */
             OnePtSACModel()
             {
                 /* one point can fit this model */
-                sample_size_ = 1;
+                this->sample_size_ = 1;
                 /* this model parameter is index */
-                model_size_ = 1;
+                this->model_size_ = 1;
             }
 
             /***
@@ -153,8 +158,8 @@ namespace eststack
                     std::vector<int> new_inliers_indices(idx_vec.begin(), idx_vec.begin() + new_inliers_num);
 
                     /* now we get refined correspondence */
-                    Eigen::Matrix3Xf new_source_inliers(Eigen::placeholders::all, new_inliers_indices);
-                    Eigen::Matrix3Xf new_target_inliers(Eigen::placeholders::all, new_inliers_indices);
+                    Eigen::Matrix3Xf new_source_inliers = source_inliers(Eigen::placeholders::all, new_inliers_indices);
+                    Eigen::Matrix3Xf new_target_inliers = target_inliers(Eigen::placeholders::all, new_inliers_indices);
                     source_inliers = std::move(new_source_inliers);
                     target_inliers = std::move(new_target_inliers);
 
@@ -165,7 +170,10 @@ namespace eststack
                         next_indices.push_back(current_indices[new_inliers_indices[k]]);
                     current_indices = std::move(next_indices);
 
-                    /* truncate condition is also an exp. */
+                    /***
+                     * truncate condition is also an exp., here means ratio of inliers convergence,
+                     * if the number of inliers is not significantly reduced, we can stop iteration
+                     */
                     if (inliers_num - new_inliers_num < 5)
                         break;
                     inliers_num = new_inliers_num;
@@ -176,21 +184,24 @@ namespace eststack
         };
 
         /***
-         * @brief two point RANSAC model based on angular consistency
+         * @brief two points RANSAC model based on angular discrepancy
          * @details refer to docs/explanation/TCF.md
          */
         class TwoPtSACModel final : public BaseSACModel<TwoPtSACModel>
         {
         public:
+            using Ptr = std::shared_ptr<TwoPtSACModel>;
+            using ConstPtr = std::shared_ptr<const TwoPtSACModel>;
+
             /***
              * @brief default constructor
              */
             TwoPtSACModel()
             {
                 /* two points can fit this model */
-                sample_size_ = 2;
+                this->sample_size_ = 2;
                 /* this model parameter is index */
-                model_size_ = 2;
+                this->model_size_ = 2;
             }
 
             /***
@@ -273,6 +284,12 @@ namespace eststack
                     float right_source_vec_norm = right_source_vec.norm();
                     float right_target_vec_norm = right_target_vec.norm();
 
+                    /* avoid sin(0) or cos(0) */
+                    constexpr float denom_eps = std::numeric_limits<float>::epsilon();
+                    if (left_source_vec_norm < denom_eps || right_source_vec_norm < denom_eps ||
+                        left_target_vec_norm < denom_eps || right_target_vec_norm < denom_eps)
+                        continue;
+
                     float source_cos = left_source_vec.dot(right_source_vec) / (left_source_vec_norm * right_source_vec_norm);
                     float target_cos = left_target_vec.dot(right_target_vec) / (left_target_vec_norm * right_target_vec_norm);
                     /* `std::clamp` to constrain sine/cosine value */
@@ -306,28 +323,31 @@ namespace eststack
         };
 
         /***
-         * @brief two point RANSAC model based on SVD solution of Wahba Problem
+         * @brief three points RANSAC model based on SVD solution of Wahba Problem
          * @details refer to docs/explanation/TCF.md
          */
         class ThreePtSACModel final : public BaseSACModel<ThreePtSACModel>
         {
         public:
+            using Ptr = std::shared_ptr<ThreePtSACModel>;
+            using ConstPtr = std::shared_ptr<const ThreePtSACModel>;
+
             /***
              * @brief default constructor
              */
             ThreePtSACModel()
             {
                 /* three points can fit this model */
-                sample_size_ = 3;
+                this->sample_size_ = 3;
                 /* this model parameter is qw qx qy qz and x y z */
-                model_size_ = 7;
+                this->model_size_ = 7;
             }
 
             /***
              * @brief fit model with samples
              * @param samples sample indices
              * @param[out] coeffs output model coefficients
-             * @details sequence: qw qx qy qz x y z
+             * @details coefficients sequence: qw qx qy qz x y z
              */
             bool fitImpl(const std::vector<int> &samples, Eigen::VectorXf &coeffs)
             {
@@ -345,15 +365,15 @@ namespace eststack
                 if (source_vec_1.cross(source_vec_2).norm() < eps || target_vec_1.cross(target_vec_2).norm() < eps)
                     return false;
 
-                /* get R and t via Kabsch */
+                /* get R and t via kabsch */
                 Eigen::Matrix3f source_sample = source_(Eigen::placeholders::all, samples);
                 Eigen::Matrix3f target_sample = target_(Eigen::placeholders::all, samples);
                 Eigen::Isometry3f T = eststack::core::kabsch(source_sample, target_sample);
-                Eigen::Quaternionf q(T.rotation());
+                Eigen::Quaternionf q = eststack::core::fromDCM(T.linear());
                 Eigen::Vector3f t = T.translation();
 
                 /* serialize into coefficients in proper sequence */
-                coeffs.resize(7);
+                coeffs.resize(model_size_);
                 coeffs(0) = q.w();
                 coeffs(1) = q.x();
                 coeffs(2) = q.y();
@@ -371,6 +391,20 @@ namespace eststack
              */
             std::vector<int> selectInliersImpl(const Eigen::VectorXf &coeffs) const
             {
+                /* deserialize coefficients */
+                Eigen::Quaternionf q(coeffs(0), coeffs(1), coeffs(2), coeffs(3));
+                Eigen::Vector3f t(coeffs(4), coeffs(5), coeffs(6));
+                Eigen::Matrix3f R = q.toRotationMatrix();
+
+                /* transform source cloud as best estimated cloud */
+                Eigen::Matrix3Xf est_source = (R * source_).colwise() + t;
+
+                /* calculate error distance as score */
+                Eigen::VectorXf error_distance = (est_source - target_).colwise().norm().transpose();
+                const Eigen::VectorXi inlier_flags = (error_distance.array() < threshold_).cast<int>();
+                const Eigen::VectorXi inlier_indices = eststack::getNonZeroColumnIndicesFromVector(inlier_flags);
+
+                return std::vector<int>(inlier_indices.data(), inlier_indices.data() + inlier_indices.size());
             }
         };
     } // namespace model

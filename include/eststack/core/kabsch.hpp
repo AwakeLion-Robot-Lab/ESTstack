@@ -89,7 +89,7 @@ namespace eststack
 
             /* constrain rotation matrix to SO(3) about det(R) = 1 */
             Eigen::Matrix3f R = V * U.transpose();
-            if (U.determinant() * V.determinant() < 0)
+            if (U.determinant() * V.determinant() < 0.0f)
                 R.col(2) = -R.col(2); /* if reflection, flip the sign */
 
             /* compute translation */
@@ -146,7 +146,7 @@ namespace eststack
 
             /* constrain rotation matrix to SO(3) about det(R) = 1 */
             Eigen::Matrix3f R = V * U.transpose();
-            if (U.determinant() * V.determinant() < 0)
+            if (U.determinant() * V.determinant() < 0.0f)
                 R.col(2) = -R.col(2); /* if reflection, flip the sign */
 
             /* compute translation */
@@ -223,7 +223,7 @@ namespace eststack
 
             /* constrain rotation matrix to SO(3) */
             Eigen::Matrix3f R = V * U.transpose();
-            if (U.determinant() * V.determinant() < 0)
+            if (U.determinant() * V.determinant() < 0.0f)
                 R.col(2) = -R.col(2);
 
             /* compute translation */
@@ -293,7 +293,7 @@ namespace eststack
 
             /* constrain rotation matrix to SO(3) */
             Eigen::Matrix3f R = V * U.transpose();
-            if (U.determinant() * V.determinant() < 0)
+            if (U.determinant() * V.determinant() < 0.0f)
                 R.col(2) = -R.col(2);
 
             /* compute translation */

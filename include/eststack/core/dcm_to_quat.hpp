@@ -44,7 +44,7 @@ namespace eststack
          * @return best quaternion
          * @details see `sarabandi` and `bar_itzhack`
          */
-        Eigen::Quaterniond from_dcm(const Eigen::Matrix3d &dcm)
+        Eigen::Quaternionf fromDCM(const Eigen::Matrix3f &dcm)
         {
             if (isRotationMatrix(dcm))
             {
@@ -55,7 +55,7 @@ namespace eststack
             {
                 /* if DCM is ill-conditioned seriously, return a default quaternion */
                 if (getConditionNumber(dcm) > 1e5)
-                    return Eigen::Quaterniond::Identity();
+                    return Eigen::Quaternionf::Identity();
 
                 /* if DCM is not orthogonal but well-conditioned, use the robust method */
                 return bar_itzhack(dcm);
@@ -70,89 +70,89 @@ namespace eststack
          * @details DCM MUST BE a valid rotation matrix, refer to [12] and https://github.com/Mayitzin/ahrs/blob/master/ahrs/common/orientation.py#L1117
          *          eta threshold selection can refer to docs/explanations/dcm_to_quat.md
          */
-        Eigen::Quaterniond sarabandi(const Eigen::Matrix3d &dcm, const double &eta = 0.0)
+        Eigen::Quaternionf sarabandi(const Eigen::Matrix3f &dcm, const float &eta = 0.0)
         {
-            const double r11 = dcm(0, 0);
-            const double r12 = dcm(0, 1);
-            const double r13 = dcm(0, 2);
-            const double r21 = dcm(1, 0);
-            const double r22 = dcm(1, 1);
-            const double r23 = dcm(1, 2);
-            const double r31 = dcm(2, 0);
-            const double r32 = dcm(2, 1);
-            const double r33 = dcm(2, 2);
+            const float r11 = dcm(0, 0);
+            const float r12 = dcm(0, 1);
+            const float r13 = dcm(0, 2);
+            const float r21 = dcm(1, 0);
+            const float r22 = dcm(1, 1);
+            const float r23 = dcm(1, 2);
+            const float r31 = dcm(2, 0);
+            const float r32 = dcm(2, 1);
+            const float r33 = dcm(2, 2);
 
-            const double dw = r11 + r22 + r33;
-            const double dx = r11 - r22 - r33;
-            const double dy = -r11 + r22 - r33;
-            const double dz = -r11 - r22 + r33;
+            const float dw = r11 + r22 + r33;
+            const float dx = r11 - r22 - r33;
+            const float dy = -r11 + r22 - r33;
+            const float dz = -r11 - r22 + r33;
 
-            double qw, qx, qy, qz;
+            float qw, qx, qy, qz;
 
             if (dw > eta)
             {
-                qw = 0.5 * std::sqrt(1.0 + dw);
+                qw = 0.5f * std::sqrt(1.0f + dw);
             }
             else
             {
-                const double nom = (r32 - r23) * (r32 - r23) +
-                                   (r13 - r31) * (r13 - r31) +
-                                   (r21 - r12) * (r21 - r12);
-                const double denom = 3.0 - dw;
-                qw = (denom > 0.0) ? 0.5 * std::sqrt(nom / denom) : 0.0;
+                const float nom = (r32 - r23) * (r32 - r23) +
+                                  (r13 - r31) * (r13 - r31) +
+                                  (r21 - r12) * (r21 - r12);
+                const float denom = 3.0f - dw;
+                qw = (denom > 0.0f) ? 0.5f * std::sqrt(nom / denom) : 0.0f;
             }
 
             if (dx > eta)
             {
-                qx = 0.5 * std::sqrt(1.0 + dx);
+                qx = 0.5f * std::sqrt(1.0f + dx);
             }
             else
             {
-                const double nom = (r32 - r23) * (r32 - r23) +
-                                   (r12 + r21) * (r12 + r21) +
-                                   (r31 + r13) * (r31 + r13);
-                const double denom = 3.0 - dx;
-                qx = (denom > 0.0) ? 0.5 * std::sqrt(nom / denom) : 0.0;
+                const float nom = (r32 - r23) * (r32 - r23) +
+                                  (r12 + r21) * (r12 + r21) +
+                                  (r31 + r13) * (r31 + r13);
+                const float denom = 3.0f - dx;
+                qx = (denom > 0.0f) ? 0.5f * std::sqrt(nom / denom) : 0.0f;
             }
 
             if (dy > eta)
             {
-                qy = 0.5 * std::sqrt(1.0 + dy);
+                qy = 0.5f * std::sqrt(1.0f + dy);
             }
             else
             {
-                const double nom = (r13 - r31) * (r13 - r31) +
-                                   (r12 + r21) * (r12 + r21) +
-                                   (r23 + r32) * (r23 + r32);
-                const double denom = 3.0 - dy;
-                qy = (denom > 0.0) ? 0.5 * std::sqrt(nom / denom) : 0.0;
+                const float nom = (r13 - r31) * (r13 - r31) +
+                                  (r12 + r21) * (r12 + r21) +
+                                  (r23 + r32) * (r23 + r32);
+                const float denom = 3.0f - dy;
+                qy = (denom > 0.0f) ? 0.5f * std::sqrt(nom / denom) : 0.0f;
             }
 
             if (dz > eta)
             {
-                qz = 0.5 * std::sqrt(1.0 + dz);
+                qz = 0.5f * std::sqrt(1.0f + dz);
             }
             else
             {
-                const double nom = (r21 - r12) * (r21 - r12) +
-                                   (r31 + r13) * (r31 + r13) +
-                                   (r23 + r32) * (r23 + r32);
-                const double denom = 3.0 - dz;
-                qz = (denom > 0.0) ? 0.5 * std::sqrt(nom / denom) : 0.0;
+                const float nom = (r21 - r12) * (r21 - r12) +
+                                  (r31 + r13) * (r31 + r13) +
+                                  (r23 + r32) * (r23 + r32);
+                const float denom = 3.0f - dz;
+                qz = (denom > 0.0f) ? 0.5f * std::sqrt(nom / denom) : 0.0f;
             }
 
-            if (qw < 0.0)
+            if (qw < 0.0f)
             {
                 qw = -qw;
                 qx = -qx;
                 qy = -qy;
                 qz = -qz;
             }
-            qx *= (r32 - r23 >= 0.0) ? 1.0 : -1.0;
-            qy *= (r13 - r31 >= 0.0) ? 1.0 : -1.0;
-            qz *= (r21 - r12 >= 0.0) ? 1.0 : -1.0;
+            qx *= (r32 - r23 >= 0.0f) ? 1.0f : -1.0f;
+            qy *= (r13 - r31 >= 0.0f) ? 1.0f : -1.0f;
+            qz *= (r21 - r12 >= 0.0f) ? 1.0f : -1.0f;
 
-            return Eigen::Quaterniond(qw, qx, qy, qz).normalized();
+            return Eigen::Quaternionf(qw, qx, qy, qz).normalized();
         }
 
         /***
@@ -161,15 +161,15 @@ namespace eststack
          * @return best quaternion
          * @details refer to [14], here I ONLY implement Version 3 algorithm 'cause ONLY it can handle non-orthogonal DCM
          */
-        Eigen::Quaterniond bar_itzhack(const Eigen::Matrix3d &dcm)
+        Eigen::Quaternionf bar_itzhack(const Eigen::Matrix3f &dcm)
         {
-            auto vec_pairs = std::array<std::pair<Eigen::Vector3d, Eigen::Vector3d>, 3>{
-                std::make_pair(dcm.row(0), Eigen::Vector3d::UnitX()),
-                std::make_pair(dcm.row(1), Eigen::Vector3d::UnitY()),
-                std::make_pair(dcm.row(2), Eigen::Vector3d::UnitZ())};
+            auto vec_pairs = std::array<std::pair<Eigen::Vector3f, Eigen::Vector3f>, 3>{
+                std::make_pair(dcm.row(0), Eigen::Vector3f::UnitX()),
+                std::make_pair(dcm.row(1), Eigen::Vector3f::UnitY()),
+                std::make_pair(dcm.row(2), Eigen::Vector3f::UnitZ())};
 
-            const double weight_val = 1.0 / 3.0;
-            auto weights = std::array<double, 3>{weight_val, weight_val, weight_val};
+            const float weight_val = 1.0f / 3.0f;
+            auto weights = std::array<float, 3>{weight_val, weight_val, weight_val};
 
             return steady_q_method(vec_pairs, weights);
         }
@@ -181,60 +181,60 @@ namespace eststack
          * @return best quaternion
          * @details refer to [13] and docs/explanations/dcm_to_quat.md
          */
-        Eigen::Quaterniond steady_q_method(const std::array<std::pair<Eigen::Vector3d, Eigen::Vector3d>, 3> &vec_pairs,
-                                           const std::array<double, 3> &weights)
+        Eigen::Quaternionf steady_q_method(const std::array<std::pair<Eigen::Vector3f, Eigen::Vector3f>, 3> &vec_pairs,
+                                           const std::array<float, 3> &weights)
         {
             /* compute matrix B */
-            Eigen::Matrix3d B = Eigen::Matrix3d::Zero();
+            Eigen::Matrix3f B = Eigen::Matrix3f::Zero();
             for (int i = 0; i < 3; ++i)
             {
                 B += weights[i] * vec_pairs[i].first * vec_pairs[i].second.transpose(); /* this is an 2nd-order and 3-dim tensor, not scalar! */
             }
 
             /* compute matrix K */
-            const double sigma = B.trace();
-            const double B00 = B(0, 0);
-            const double B01 = B(0, 1);
-            const double B02 = B(0, 2);
-            const double B10 = B(1, 0);
-            const double B11 = B(1, 1);
-            const double B12 = B(1, 2);
-            const double B20 = B(2, 0);
-            const double B21 = B(2, 1);
-            const double B22 = B(2, 2);
+            const float sigma = B.trace();
+            const float B00 = B(0, 0);
+            const float B01 = B(0, 1);
+            const float B02 = B(0, 2);
+            const float B10 = B(1, 0);
+            const float B11 = B(1, 1);
+            const float B12 = B(1, 2);
+            const float B20 = B(2, 0);
+            const float B21 = B(2, 1);
+            const float B22 = B(2, 2);
 
-            const Eigen::Vector3d z(B12 - B21,
+            const Eigen::Vector3f z(B12 - B21,
                                     B20 - B02,
                                     B01 - B10);
-            const double z0 = z(0);
-            const double z1 = z(1);
-            const double z2 = z(2);
+            const float z0 = z(0);
+            const float z1 = z(1);
+            const float z2 = z(2);
 
-            const double s00 = 2.0 * B00 - sigma;
-            const double s11 = 2.0 * B11 - sigma;
-            const double s22 = 2.0 * B22 - sigma;
-            const double s01 = B01 + B10;
-            const double s02 = B02 + B20;
-            const double s12 = B12 + B21;
+            const float s00 = 2.0f * B00 - sigma;
+            const float s11 = 2.0f * B11 - sigma;
+            const float s22 = 2.0f * B22 - sigma;
+            const float s01 = B01 + B10;
+            const float s02 = B02 + B20;
+            const float s12 = B12 + B21;
 
-            Eigen::Matrix4d K = Eigen::Matrix4d::Zero();
+            Eigen::Matrix4f K = Eigen::Matrix4f::Zero();
             K << sigma, z0, z1, z2,
                 z0, s00, s01, s02,
                 z1, s01, s11, s12,
                 z2, s02, s12, s22;
 
             /* get eigenvector corresponding to maximum eigenvalue */
-            Eigen::SelfAdjointEigenSolver<Eigen::Matrix4d> solver(K, Eigen::ComputeEigenvectors);
-            Eigen::Vector4d q = solver.eigenvectors().col(3);
+            Eigen::SelfAdjointEigenSolver<Eigen::Matrix4f> solver(K, Eigen::ComputeEigenvectors);
+            Eigen::Vector4f q = solver.eigenvectors().col(3);
 
             /***
-             * NOTE that Eigen::Quaterniond construct with Eigen::Vector4d is fully copy without swtiching position!
-             * i.e. Eigen::Quaterniond(q) will construct a quaternion with x=q(0), y=q(1), z=q(2), w=q(3)
-             * but normal constructor is Eigen::Quaterniond(w, x, y, z): m_coeffs(x, y, z, w). See, it changes the order!
+             * NOTE that Eigen::Quaternionf construct with Eigen::Vector4f is fully copy without swtiching position!
+             * i.e. `Eigen::Quaternionf(q)` will construct a quaternion with x=q(0), y=q(1), z=q(2), w=q(3)
+             * but normal constructor is `Eigen::Quaternionf(w, x, y, z): m_coeffs(x, y, z, w)`. see, it changes the order!
              * details refer to [Eigen 5.0.0 Quaternion documentation](https://libeigen.gitlab.io/eigen/docs-5.0/classEigen_1_1Quaternion.html),
              * just focus on constructor 2/9 and 7/9, here q(0) is real part, use constructor 2/9
              */
-            return Eigen::Quaterniond(q(0), q(1), q(2), q(3)).normalized();
+            return Eigen::Quaternionf(q(0), q(1), q(2), q(3)).normalized();
         }
     } // namespace core
 } // namespace eststack

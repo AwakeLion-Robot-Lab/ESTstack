@@ -14,7 +14,7 @@ if is_mode("debug") then
     add_cxflags("-g")
 elseif is_mode("release") then
     set_optimize("fastest")
-    add_cxflags("-march=native", "-flto=auto", "-w")
+    add_cxflags("-march=native", "-flto=auto", "-fopenmp","-w")
     add_ldflags("-flto=auto")
 end
 

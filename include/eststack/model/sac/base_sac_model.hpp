@@ -38,8 +38,9 @@ namespace eststack
         {
         public:
             /***
-             * @brief set input source point cloud
-             * @param source 3xN source point cloud
+             * @brief set input source points
+             * @param source 3xN source points
+             * @details the source points can be either source point cloud or source points coordinates of correspondences
              */
             void setInputSource(const Eigen::Matrix3Xf &source)
             {
@@ -47,8 +48,9 @@ namespace eststack
             }
 
             /***
-             * @brief set input target point cloud
-             * @param target 3xN target point cloud
+             * @brief set input target points
+             * @param target 3xN target points
+             * @details the target points can be either target point cloud or target points coordinates of correspondences
              */
             void setInputTarget(const Eigen::Matrix3Xf &target)
             {
@@ -118,11 +120,13 @@ namespace eststack
 
             /***
              * @brief 3xN source points
+             * @details the source points can be either source point cloud or source points coordinates of correspondences
              */
             Eigen::Matrix3Xf source_;
 
             /***
              * @brief 3xN target points
+             * @details the target points can be either target point cloud or target points coordinates of correspondences
              */
             Eigen::Matrix3Xf target_;
 

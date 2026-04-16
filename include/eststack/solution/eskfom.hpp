@@ -48,7 +48,7 @@ namespace eststack
         class ESKFOM final : public BaseKF<ESKFOM<StateT>, StateT>
         {
         public:
-            EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+            EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
             using Base = BaseKF<ESKFOM<StateT>, StateT>;
             using State = typename Base::State;

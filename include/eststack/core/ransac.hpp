@@ -30,6 +30,7 @@
 
 // ESTstack library
 #include "eststack/concepts.hpp"
+#include "eststack/core/base_sac.hpp"
 
 /***
  * @brief An algorithm set focus on state estimation
@@ -48,108 +49,74 @@ namespace eststack
          * @details refer to [PCL RANSAC](https://pointclouds.org/documentation/ransac_8hpp_source.html)
          */
         template <SACModel Model>
-        class RANSAC
+        class RANSAC : public BaseSAC<RANSAC<Model>, Model>
         {
         public:
-            using ModelPtr = typename Model::Ptr;
-            using ModelConstPtr = typename Model::ConstPtr;
+            using Base = BaseSAC<RANSAC<Model>, Model>;
+            using Base::best_fitness_;
+            using Base::best_inliers_;
+            using Base::converged_;
+            using Base::max_iter_;
+            using Base::model_;
+            using Base::probability_;
+            using Base::thread_num_;
+
+            using ModelPtr = typename Base::ModelPtr;
+
+            using Ptr = std::shared_ptr<RANSAC<Model>>;
+            using ConstPtr = std::shared_ptr<const RANSAC<Model>>;
 
             /***
              * @brief default constructor
-             * @param probability probability of good fitting in iterations
+             * @param probability probability of choosing at least one sample free from outliers
              * @param max_iter maximum iterations
              */
-            explicit RANSAC(double probability = 0.99, int max_iter = 10000)
-                : probability_(probability), max_iter_(max_iter), converged_(false)
+            explicit RANSAC(float probability = 0.99f, int max_iter = 10000)
+                : Base(probability, max_iter)
             {
                 std::random_device rd;
                 rng_.seed(rd());
             }
 
             /***
-             * @brief set probability
-             * @param probability of choosing at least one sample free from outliers
-             */
-            void setProbability(double probability)
-            {
-                probability_ = probability;
-            }
-
-            /***
-             * @brief set SAmple Consensus model
-             * @param model SAmple Consensus model to fit
-             */
-            void setSACModel(const ModelPtr &model)
-            {
-                model_ = model;
-            }
-
-            /***
-             * @brief set maximum iterations
-             * @param max_iter maximum iterations threshold
-             */
-            void setMaxIterations(int max_iter) noexcept
-            {
-                max_iter_ = max_iter;
-            }
-
-            /***
-             * @brief check if RANSAC has converged
-             */
-            bool hasConverged() const noexcept
-            {
-                return converged_;
-            }
-
-            /***
-             * @brief get best fitness of the model fitting
-             */
-            const Eigen::VectorXf &getBestFitness() const noexcept
-            {
-                return best_fitness_;
-            }
-
-            /***
-             * @brief get best inliers of the model fitting
-             */
-            const std::vector<int> &getBestInliers() const noexcept
-            {
-                return best_inliers_;
-            }
-
-            /***
              * @brief run RANSAC optimization
              */
-            void optimize()
+            void optimizeImpl()
             {
                 /* check model */
-                if (model_ == nullptr)
+                if (this->model_ == nullptr)
                 {
-                    converged_ = false;
+                    this->converged_ = false;
                     return;
                 }
 
                 /* check source-target dimensions */
-                const int cloud_size = model_->getCloudSize();
-                const int sample_size = model_->getSampleSize();
+                const int cloud_size = this->model_->getCloudSize();
+                const int sample_size = this->model_->getSampleSize();
                 if (cloud_size == 0 || cloud_size < sample_size)
                 {
-                    converged_ = false;
+                    this->converged_ = false;
                     return;
                 }
 
                 /* initialization */
                 int best_inliers_num = 0;
                 int iter = 0;
-                int adaptive_max_iter = max_iter_;
+                int adaptive_max_iter = this->max_iter_;
                 unsigned skipped_count = 0;
-                const unsigned max_skip = static_cast<unsigned>(max_iter_) * 10;
+                const unsigned max_skip = static_cast<unsigned>(this->max_iter_) * 10;
 
                 shuffled_indices_.resize(cloud_size);
                 std::iota(shuffled_indices_.begin(), shuffled_indices_.end(), 0);
 
+                int threads = this->thread_num_;
+#ifdef _OPENMP
+                if (threads == 0)
+                    threads = omp_get_max_threads();
+#endif
+
                 /* RANSAC loop */
-#pragma omp parallel shared(best_inliers_num, adaptive_max_iter, iter, skipped_count)
+#pragma omp parallel if (threads > 0) num_threads(threads) shared(best_inliers_num, adaptive_max_iter, iter, skipped_count)
                 {
                     while (true)
                     {
@@ -164,6 +131,7 @@ namespace eststack
                         Eigen::VectorXf model_coeffs(model_->getModelSize());
                         if (!model_->fit(samples, model_coeffs))
                         {
+                            /* avoid infinite loop caused by skipped iterations */
                             unsigned skipped_temp;
 #pragma omp atomic capture
                             skipped_temp = ++skipped_count;
@@ -189,8 +157,8 @@ namespace eststack
                                 if (inliers_num > best_inliers_num)
                                 {
                                     best_inliers_num = inliers_num;
-                                    best_inliers_ = inliers;
-                                    best_fitness_ = model_coeffs;
+                                    this->best_inliers_ = inliers;
+                                    this->best_fitness_ = model_coeffs;
 
                                     /* update adaptive maximum iterations */
                                     double inlier_fraction = static_cast<double>(inliers_num) / cloud_size;
@@ -203,12 +171,12 @@ namespace eststack
                                     /* if probability of at least one outlier < 1.0, update */
                                     if (p_outliers < 1.0)
                                     {
-                                        adaptive_max_iter = static_cast<int>(std::ceil(std::log(1.0 - probability_) / std::log(p_outliers)));
+                                        adaptive_max_iter = static_cast<int>(std::ceil(std::log(1.0f - this->probability_) / std::log(p_outliers)));
                                         /***
                                          * if inlier_fraction is close to 0, adaptive_max_iter become very large
                                          * so constrain the upper bound is max_iter_ to avoid infinite loop
                                          */
-                                        adaptive_max_iter = std::min(max_iter_, adaptive_max_iter);
+                                        adaptive_max_iter = std::min(this->max_iter_, adaptive_max_iter);
                                     }
                                 }
                             }
@@ -222,33 +190,23 @@ namespace eststack
 #pragma omp atomic read
                         adaptive_max_iter_local = adaptive_max_iter;
 
-                        if (iter_local > adaptive_max_iter_local || iter_local > max_iter_)
+                        if (iter_local > adaptive_max_iter_local || iter_local > this->max_iter_)
                             break;
                     }
                 }
 
                 /* after get the most inliers set, fit model finally to get best parameter */
-                if (best_inliers_num > 0 && model_->fit(best_inliers_, best_fitness_))
+                if (best_inliers_num > 0 && this->model_->fit(this->best_inliers_, this->best_fitness_))
                 {
-                    converged_ = true;
+                    this->converged_ = true;
                 }
                 else
                 {
-                    converged_ = false;
+                    this->converged_ = false;
                 }
             }
 
         private:
-            /***
-             * @brief SAmple Consensus model to fit
-             */
-            ModelPtr model_;
-
-            /***
-             * @brief best fitness of the model
-             */
-            Eigen::VectorXf best_fitness_;
-
             /***
              * @brief random generator
              */
@@ -260,31 +218,11 @@ namespace eststack
             std::vector<int> shuffled_indices_;
 
             /***
-             * @brief best inliers of the model fitting
-             */
-            std::vector<int> best_inliers_;
-
-            /***
-             * @brief probability of choosing at least one sample free from outliers
-             */
-            double probability_;
-
-            /***
-             * @brief maximum iterations
-             */
-            int max_iter_;
-
-            /***
-             * @brief flag for convergence
-             */
-            bool converged_;
-
-            /***
              * @brief get random samples for model fitting
              * @param sample_size number of samples to fit
              * @param cloud_size size of the input point cloud
              */
-            std::vector<int> getSamples(int sample_size)
+            inline std::vector<int> getSamples(int sample_size)
             {
                 std::vector<int> samples(sample_size);
 

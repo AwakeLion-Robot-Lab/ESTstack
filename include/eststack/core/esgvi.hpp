@@ -44,7 +44,7 @@ namespace eststack
             ESGVI() = default;
         };
 
-    }
-}
+    } // namespace core
+} // namespace eststack
 
 #endif //! CORE__ESGVI_HPP

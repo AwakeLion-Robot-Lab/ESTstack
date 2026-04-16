@@ -12,20 +12,24 @@ Main bibTeX references used in ESTstack. See per-algorithm explanation pages for
 | [6]  | blanco2010tutorial   | SE(3) transformation parameterizations tutorial     |
 | [7]  | qiu2019monocular     | Unbiased linear system model for VIO                |
 | [8]  | sola2021lie_video    | Lie theory for the roboticist (YouTube)             |
-| [9]  | hammarstrand_ssy345  | SSY345 — Sensor Fusion and Nonlinear Filtering      |
-| [10] | yuan2024btc          | BTC descriptor for 3D place recognition             |
-| [11] | shi2024ransac        | RANSAC two-stage consensus for 3D registration      |
-| [12] | sarabandi2019        | Sarabandi: Accurate DCM to quaternion               |
-| [13] | ahrs_davenport       | Davenport's q-method (Wahba's problem)              |
-| [14] | bar-itzhack2000      | Bar-Itzhack: Quaternion from Rotation Matrix        |
-| [15] | deray2020manif       | manif — C++ Lie group library                       |
-| [16] | deray2021kalmanif    | kalmanif — Kalman Filters on Lie groups             |
-| [17] | wang2022sfastlio     | S-FAST_LIO — LiDAR-Inertial Odometry                |
-| [18] | koide_hdl_global_loc | hdl_global_localization — BBS for 3D LiDAR          |
+| [9]  | brossard2020ukfm     | UKF-M: Unscented Kalman Filtering on Manifolds      |
+| [10] | hammarstrand_ssy345  | SSY345 — Sensor Fusion and Nonlinear Filtering      |
+| [11] | yuan2024btc          | BTC descriptor for 3D place recognition             |
+| [12] | shi2024ransac        | RANSAC two-stage consensus for 3D registration      |
+| [13] | rusu2011pcl          | Point Cloud Library (PCL)                           |
+| [14] | barath2019magsac     | MAGSAC — marginalizing sample consensus             |
+| [15] | barath2020magsacpp   | MAGSAC++ — fast robust estimator                    |
+| [16] | sarabandi2019        | Sarabandi: Accurate DCM to quaternion               |
+| [17] | ahrs_davenport       | Davenport's q-method (Wahba's problem)              |
+| [18] | bar-itzhack2000      | Bar-Itzhack: Quaternion from Rotation Matrix        |
+| [19] | deray2020manif       | manif — C++ Lie group library                       |
+| [20] | deray2021kalmanif    | kalmanif — Kalman Filters on Lie groups             |
+| [21] | wang2022sfastlio     | S-FAST_LIO — LiDAR-Inertial Odometry                |
+| [22] | koide_hdl_global_loc | hdl_global_localization — BBS for 3D LiDAR          |
 
 ---
 
-## Kalman Filter
+## Kalman Filter Family
 
 ```bibtex
 % [1]
@@ -65,11 +69,7 @@ Main bibTeX references used in ESTstack. See per-algorithm explanation pages for
   note      = {Bayesian estimation, Kalman filter, EKF, UKF, batch optimization,
                Lie groups for 3D estimation, Gaussian processes on trajectories}
 }
-```
 
-## ESKFOM
-
-```bibtex
 % [4]
 @article{sola2017quaternion,
   title   = {Quaternion kinematics for the error-state {K}alman filter},
@@ -126,16 +126,24 @@ Main bibTeX references used in ESTstack. See per-algorithm explanation pages for
   note         = {Visual introduction to Lie groups, Lie algebra, exp/log maps,
                   Adjoint, and left/right Jacobians for robotics ESKF}
 }
+
+% [9]
+@inproceedings{brossard2020ukfm,
+  author    = {Brossard, Martin and Barrau, Axel and Bonnabel, Silv\`ere},
+  booktitle = {2020 IEEE International Conference on Robotics and Automation (ICRA)},
+  title     = {A Code for Unscented {K}alman Filtering on Manifolds ({UKF-M})},
+  year      = {2020},
+  pages     = {5701--5708},
+  doi       = {10.1109/ICRA40945.2020.9197489}
+}
 ```
 
-## SUKFOM
-
-See also: [1], [9]
+---
 
 ## Motion Modeling
 
 ```bibtex
-% [9]
+% [10]
 @misc{hammarstrand_ssy345,
   title        = {{SSY345} -- Sensor Fusion and Nonlinear Filtering},
   author       = {Hammarstrand, Lars},
@@ -148,10 +156,10 @@ See also: [1], [9]
 
 ---
 
-## BTC Descriptor
+## Descriptors
 
 ```bibtex
-% [10]
+% [11]
 @article{yuan2024btc,
   title   = {{BTC}: A Binary and Triangle Combined Descriptor
              for 3-{D} Place Recognition},
@@ -167,10 +175,12 @@ See also: [1], [9]
 }
 ```
 
-## Two-Stage Consensus Filtering
+---
+
+## Sample Consensus Family
 
 ```bibtex
-% [11]
+% [12]
 @article{shi2024ransac,
   title   = {{RANSAC} Back to {SOTA}: A Two-Stage Consensus Filtering
              for Real-Time {3D} Registration},
@@ -185,29 +195,56 @@ See also: [1], [9]
   note    = {Coarse compatibility graph voting + fine RANSAC verification
              for real-time 3D registration}
 }
+
+% [13]
+@inproceedings{rusu2011pcl,
+  author    = {Radu Bogdan Rusu and Steve Cousins},
+  title     = {{3D is here: Point Cloud Library (PCL)}},
+  booktitle = {{IEEE International Conference on Robotics and Automation (ICRA)}},
+  month     = {May 9--13},
+  year      = {2011},
+  address   = {Shanghai, China},
+  publisher = {IEEE}
+}
+
+% [14]
+@inproceedings{barath2019magsac,
+  author    = {Barath, Daniel and Matas, Jiri and Noskova, Jana},
+  title     = {{MAGSAC}: marginalizing sample consensus},
+  booktitle = {Conference on Computer Vision and Pattern Recognition},
+  year      = {2019},
+}
+
+% [15]
+@inproceedings{barath2020magsacpp,
+  author    = {Barath, Daniel and Noskova, Jana and Ivashechkin, Maksym and Matas, Jiri},
+  title     = {{MAGSAC}++, a fast, reliable and accurate robust estimator},
+  booktitle = {Conference on Computer Vision and Pattern Recognition},
+  year      = {2020},
+}
 ```
 
 ---
 
-## DCM to Quaternion 
+## DCM to Quaternion
 
 ```bibtex
-% [12]
+% [16]
 @incollection{sarabandiAccurateComputationQuaternions2019,
-  title = {Accurate Computation of Quaternions from Rotation Matrices},
-  author = {Sarabandi, Soheil and Thomas, Federico},
-  editor = {Lenarcic, Jadran and {Parenti-Castelli}, Vincenzo},
-  year = 2019,
-  volume = {8},
-  pages = {39--46},
+  title     = {Accurate Computation of Quaternions from Rotation Matrices},
+  author    = {Sarabandi, Soheil and Thomas, Federico},
+  editor    = {Lenarcic, Jadran and {Parenti-Castelli}, Vincenzo},
+  year      = 2019,
+  volume    = {8},
+  pages     = {39--46},
   publisher = {Springer International Publishing},
-  address = {Cham},
-  doi = {10.1007/978-3-319-93188-3_5},
-  isbn = {978-3-319-93187-6 978-3-319-93188-3},
-  langid = {american},
+  address   = {Cham},
+  doi       = {10.1007/978-3-319-93188-3_5},
+  isbn      = {978-3-319-93187-6 978-3-319-93188-3},
+  langid    = {american},
 }
 
-% [13]
+% [17]
 @misc{ahrs_davenport,
   title        = {Davenport's q-Method},
   author       = {{AHRS Documentation}},
@@ -217,21 +254,20 @@ See also: [1], [9]
                   for finding optimal rotation from vector observations}
 }
 
-% [14]
+% [18]
 @article{bar-itzhackNewMethodExtracting2000,
-  title = {New Method for Extracting the Quaternion from a Rotation Matrix},
-  author = {{Bar-Itzhack}, Itzhack Y.},
-  year = 2000,
-  month = nov,
-  journal = {Journal of Guidance, Control, and Dynamics},
-  volume = {23},
-  number = {6},
-  pages = {1085--1087},
-  issn = {0731-5090, 1533-3884},
-  doi = {10.2514/2.4654},
-  langid = {english},
+  title     = {New Method for Extracting the Quaternion from a Rotation Matrix},
+  author    = {{Bar-Itzhack}, Itzhack Y.},
+  year      = 2000,
+  month     = nov,
+  journal   = {Journal of Guidance, Control, and Dynamics},
+  volume    = {23},
+  number    = {6},
+  pages     = {1085--1087},
+  issn      = {0731-5090, 1533-3884},
+  doi       = {10.2514/2.4654},
+  langid    = {english},
 }
-
 ```
 
 ---
@@ -239,7 +275,7 @@ See also: [1], [9]
 ## Code Refinement
 
 ```bibtex
-% [15]
+% [19]
 @article{deray2020manif,
   title   = {manif: A small header-only library for {L}ie theory},
   author  = {Deray, Jeremie and Sol{\`a}, Joan},
@@ -253,7 +289,7 @@ See also: [1], [9]
              automatic Jacobians via plus/minus}
 }
 
-% [16]
+% [20]
 @misc{deray2021kalmanif,
   title   = {kalmanif: A small collection of {K}alman Filters on {L}ie groups},
   author  = {Deray, Jeremie},
@@ -263,7 +299,7 @@ See also: [1], [9]
              SE_2(3) IMU strap-down ESKF reference (demo\_se\_2\_3.cpp)}
 }
 
-% [17]
+% [21]
 @misc{wang2022sfastlio,
   title        = {{S-FAST\_LIO}: A Resource-Efficient LiDAR-Inertial Odometry System},
   author       = {zlwang7},
@@ -273,7 +309,7 @@ See also: [1], [9]
                   and feature extraction optimization}
 }
 
-% [18]
+% [22]
 @misc{koide_hdl_global_localization,
   title        = {hdl_global_localization},
   author       = {Koide, Kenji},

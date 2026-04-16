@@ -104,8 +104,13 @@ namespace eststack
         class RigidIRLS
         {
         public:
+            EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
             using LossPtr = typename LossFunc::Ptr;
             using LossConstPtr = typename LossFunc::ConstPtr;
+
+            using Ptr = std::shared_ptr<RigidIRLS<LossFunc>>;
+            using ConstPtr = std::shared_ptr<const RigidIRLS<LossFunc>>;
 
             /***
              * @brief default constructor
@@ -116,9 +121,9 @@ namespace eststack
              */
             explicit RigidIRLS(float decay_factor = 1.3f, float min_scale = 1.0f,
                                float cost_tolerance = 0.01f, int max_iter = 100)
-                : decay_factor_(decay_factor), min_scale_(min_scale),
-                  cost_tolerance_(cost_tolerance), max_iter_(max_iter),
-                  converged_(false)
+                : init_guess_(Eigen::Isometry3f::Identity()), decay_factor_(decay_factor),
+                  min_scale_(min_scale), cost_tolerance_(cost_tolerance),
+                  max_iter_(max_iter), converged_(false)
             {
             }
 
@@ -150,6 +155,15 @@ namespace eststack
             }
 
             /***
+             * @brief set initial guess for transformation
+             * @param init_guess initial guess
+             */
+            void setInitGuess(const Eigen::Isometry3f &init_guess)
+            {
+                init_guess_ = init_guess;
+            }
+
+            /***
              * @brief set maximum iterations
              * @param max_iter maximum iterations
              */
@@ -160,7 +174,7 @@ namespace eststack
 
             /***
              * @brief get final transformation matrix
-             * @return const reference to final transformation
+             * @return final transformation
              */
             const Eigen::Isometry3f &getFinalTransformation() const noexcept
             {
@@ -199,7 +213,7 @@ namespace eststack
                 }
 
                 /* initialization */
-                Eigen::Isometry3f trans = Eigen::Isometry3f::Identity();
+                Eigen::Isometry3f trans = init_guess_;
                 Eigen::Matrix3Xf source_current = source_;
                 Eigen::Matrix3Xf target_current = target_;
                 Eigen::VectorXf weights = Eigen::VectorXf::Ones(N);
@@ -225,7 +239,8 @@ namespace eststack
                     target_current = target_temp;
 
                     /* compute transform via weighted kabsch */
-                    trans = eststack::core::weightedKabsch(source_current, target_current, weights);
+                    if (iter > 1)
+                        trans = eststack::core::weightedKabsch(source_current, target_current, weights);
                     Eigen::Matrix3f R = trans.linear();
                     Eigen::Vector3f t = trans.translation();
 
@@ -299,6 +314,11 @@ namespace eststack
              * @brief 3xN target point cloud
              */
             Eigen::Matrix3Xf target_;
+
+            /***
+             * @brief initial guess for transformation
+             */
+            Eigen::Isometry3f init_guess_;
 
             /***
              * @brief final transformation result

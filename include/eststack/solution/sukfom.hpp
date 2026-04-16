@@ -38,6 +38,7 @@ namespace eststack
     {
         /***
          * @brief Scaled Unscented Kalman Filter On (parallelizable) Manifold
+         * @details refer to [9]
          */
         template <eststack::LieGroupState StateT>
         class SUKFOM : public BaseKF<SUKFOM<StateT>, StateT>

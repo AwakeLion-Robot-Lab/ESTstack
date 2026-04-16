@@ -16,18 +16,20 @@
 #define SOLUTION__BASE_PCR_HPP
 
 // C++ standard library
-#include <concepts>
+#include <memory>
 
 // Eigen library
 #include <Eigen/Dense>
 
 // PCL library
+#include <pcl/correspondence.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 
 // ESTstack library
-#include "eststack/types.hpp"
+#include "eststack/core/voxelset.hpp"
 #include "eststack/eigen_traits.hpp"
+#include "eststack/types.hpp"
 
 /***
  * @brief An algorithm set focus on state estimation
@@ -45,10 +47,25 @@ namespace eststack
          */
         struct PCRResult
         {
-            Eigen::Isometry3f best_transformation_;
-            float score_;
-            float inlier_fraction_;
-            bool converged_;
+            /***
+             * @brief best rigid transformation
+             */
+            Eigen::Isometry3f transformation_{Eigen::Isometry3f::Identity()};
+
+            /***
+             * @brief inlier fraction
+             */
+            float inlier_fraction_{0.0f};
+
+            /***
+             * @brief registration score
+             */
+            float score_{0.0f};
+
+            /***
+             * @brief whether the registration has converged
+             */
+            bool converged_{false};
         };
 
         /***
@@ -83,6 +100,65 @@ namespace eststack
             }
 
             /***
+             * @brief set correspondences
+             * @param source_match source point coordinates of source-target correspondences
+             * @param target_match target point coordinates of source-target correspondences
+             */
+            void setInputCorrespondences(const Eigen::Matrix3Xf &source_match, const Eigen::Matrix3Xf &target_match)
+            {
+                source_match_ = source_match;
+                target_match_ = target_match;
+            }
+
+            /***
+             * @brief set correspondences
+             * @param correspondences source-target correspondences
+             */
+            void setInputCorrespondences(const pcl::Correspondences &correspondences)
+            {
+                source_match_.resize(3, correspondences.size());
+                target_match_.resize(3, correspondences.size());
+
+                for (size_t i = 0; i < correspondences.size(); ++i)
+                {
+                    const auto &corr = correspondences[i];
+                    source_match_.col(i) = (source_cloud_->points[corr.index_query]).getVector3fMap();
+                    target_match_.col(i) = (target_cloud_->points[corr.index_match]).getVector3fMap();
+                }
+            }
+
+            /***
+             * @brief get registration result
+             */
+            void getResult(PCRResult &result) noexcept
+            {
+                result = result_;
+            }
+
+            /***
+             * @brief evaluate registration result
+             */
+            void evaluate()
+            {
+                if (!result_.converged_)
+                    return;
+
+                Eigen::Isometry3f transformation = result_.transformation_;
+                if (transformation.matrix().isIdentity())
+                    return;
+
+                /* get transformed source cloud */
+                PointCloudPtr transformed_source_cloud(new PointCloud);
+                pcl::transformPointCloud(*source_cloud_, *transformed_source_cloud, transformation);
+
+                /* evaluate registration result via voxelset */
+                this->voxel_evaluator_->convertPCLToVoxels(target_cloud_);
+                const auto voxel_score = this->voxel_evaluator_->evaluateScore(*transformed_source_cloud);
+                result_.inlier_fraction_ = voxel_score.inlier_fraction_;
+                result_.score_ = voxel_score.rmse_;
+            }
+
+            /***
              * @brief align to get best transformation
              */
             bool align()
@@ -91,7 +167,19 @@ namespace eststack
             }
 
         protected:
-            BasePCR() = default;
+            /***
+             * @brief default constructor
+             * @param resolution voxelset resolution for registration evaluation
+             */
+            explicit BasePCR(float resolution = 1.0f)
+            {
+                voxel_evaluator_ = std::make_unique<eststack::core::VoxelSet<PointT>>(resolution);
+            }
+
+            /***
+             * @brief voxel set for registration evaluation
+             */
+            std::unique_ptr<eststack::core::VoxelSet<PointT>> voxel_evaluator_;
 
             /***
              * @brief source point cloud to be aligned
@@ -102,6 +190,16 @@ namespace eststack
              * @brief target point cloud, e.g. global map
              */
             PointCloudConstPtr target_cloud_;
+
+            /***
+             * @brief source point coordinates of source-target correspondences
+             */
+            Eigen::Matrix3Xf source_match_;
+
+            /***
+             * @brief target point coordinates of source-target correspondences
+             */
+            Eigen::Matrix3Xf target_match_;
 
             /***
              * @brief registration result
