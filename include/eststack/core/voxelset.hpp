@@ -100,7 +100,17 @@ namespace eststack
              * @brief default constructor
              * @param resolution voxel resolution
              */
-            explicit VoxelSet(float resolution) : resolution_(resolution) {}
+            explicit VoxelSet(float resolution = 1.0f) : resolution_(resolution) {}
+
+            /***
+             * @brief set voxel resolution
+             * @param resolution voxel resolution
+             */
+            void setResolution(float resolution) noexcept
+            {
+                resolution_ = resolution;
+                voxels_.clear();
+            }
 
             /***
              * @brief convert point cloud to voxels

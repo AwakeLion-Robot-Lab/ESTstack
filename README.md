@@ -1,6 +1,6 @@
 <div align="center">
 
-![logo](./docs/logo.jpeg)
+![logo](./docs/logo.png)
 
 $\mathscr{Model,\ Match,\ Estimate\ In\ Stack.}$
 

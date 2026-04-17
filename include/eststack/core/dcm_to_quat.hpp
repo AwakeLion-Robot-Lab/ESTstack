@@ -67,8 +67,8 @@ namespace eststack
          * @param dcm direction cosine matrix
          * @param eta threshold to decide whether to use the fast method or the robust method
          * @return best quaternion
-         * @details DCM MUST BE a valid rotation matrix, refer to [12] and https://github.com/Mayitzin/ahrs/blob/master/ahrs/common/orientation.py#L1117
-         *          eta threshold selection can refer to docs/explanations/dcm_to_quat.md
+         * @details DCM MUST BE a valid rotation matrix, refer to [16] and https://github.com/Mayitzin/ahrs/blob/master/ahrs/common/orientation.py#L1117
+         *          eta threshold selection can refer to docs/explanation/dcm_to_quat.md
          */
         Eigen::Quaternionf sarabandi(const Eigen::Matrix3f &dcm, const float &eta = 0.0)
         {
@@ -159,7 +159,7 @@ namespace eststack
          * @brief Bar-Itzhack's method to extract DCM (even not orthogonal) to quaternion
          * @param dcm direction cosine matrix
          * @return best quaternion
-         * @details refer to [14], here I ONLY implement Version 3 algorithm 'cause ONLY it can handle non-orthogonal DCM
+         * @details refer to [18], here I ONLY implement Version 3 algorithm 'cause ONLY it can handle non-orthogonal DCM
          */
         Eigen::Quaternionf bar_itzhack(const Eigen::Matrix3f &dcm)
         {
@@ -179,7 +179,7 @@ namespace eststack
          * @param vec_pairs array of 3 vector pairs `(u_i, v_i)` where `u_i` is in body frame, `v_i` is in reference frame
          * @param weights weights for each vector pair
          * @return best quaternion
-         * @details refer to [13] and docs/explanations/dcm_to_quat.md
+         * @details refer to [17] and docs/explanation/dcm_to_quat.md
          */
         Eigen::Quaternionf steady_q_method(const std::array<std::pair<Eigen::Vector3f, Eigen::Vector3f>, 3> &vec_pairs,
                                            const std::array<float, 3> &weights)

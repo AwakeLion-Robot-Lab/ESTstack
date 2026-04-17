@@ -128,6 +128,15 @@ namespace eststack
             }
 
             /***
+             * @brief set voxelset resolution
+             * @param resolution voxelset resolution for registration evaluation
+             */
+            void setVoxelResolution(float resolution)
+            {
+                voxel_evaluator_->setResolution(resolution);
+            }
+
+            /***
              * @brief get registration result
              */
             void getResult(PCRResult &result) noexcept
@@ -169,11 +178,10 @@ namespace eststack
         protected:
             /***
              * @brief default constructor
-             * @param resolution voxelset resolution for registration evaluation
              */
-            explicit BasePCR(float resolution = 1.0f)
+            explicit BasePCR()
             {
-                voxel_evaluator_ = std::make_unique<eststack::core::VoxelSet<PointT>>(resolution);
+                voxel_evaluator_ = std::make_unique<eststack::core::VoxelSet<PointT>>();
             }
 
             /***

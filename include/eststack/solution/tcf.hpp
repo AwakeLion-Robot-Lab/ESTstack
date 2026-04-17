@@ -28,10 +28,12 @@
 #include <pcl/point_types.h>
 #include <pcl/filters/voxel_grid.h>
 
+// nanoflann library
+#include <nanoflann/nanoflann.hpp>
+
 // ESTstack library
 #include "eststack/model/sac/tcf_sac_model.hpp"
 #include "eststack/solution/base_pcr.hpp"
-#include "eststack/core/nanoflann.hpp"
 #include "eststack/core/ransac.hpp"
 #include "eststack/core/irls.hpp"
 
@@ -71,9 +73,19 @@ namespace eststack
 
             /***
              * @brief default constructor
-             * @param resolution voxelset resolution for registration evaluation
+             * @param leaf_size leaf size for voxel downsampling
              */
-            explicit TCF(float resolution = 1.0f) : Base(resolution) {}
+            explicit TCF(float leaf_size = 0.5f)
+                : Base(), leaf_size_(leaf_size) {}
+
+            /***
+             * @brief set leaf size
+             * @param leaf_size leaf size for voxel downsampling
+             */
+            void setLeafSize(float leaf_size) noexcept
+            {
+                leaf_size_ = leaf_size;
+            }
 
             /***
              * @brief align to get best transformation
@@ -84,8 +96,8 @@ namespace eststack
                 this->result_ = eststack::solution::PCRResult();
 
                 /* get inlier threshold via point cloud resolution */
-                const float source_resolution = getPCLResolution(this->source_cloud_);
-                const float target_resolution = getPCLResolution(this->target_cloud_);
+                const float source_resolution = getPCLResolution(this->source_cloud_, this->leaf_size_);
+                const float target_resolution = getPCLResolution(this->target_cloud_, this->leaf_size_);
                 const float inlier_threshold = std::max(source_resolution, target_resolution);
 
                 /* stage 1: length consistency coarse ransac */
@@ -193,6 +205,11 @@ namespace eststack
             using PointCloudPtr = typename Base::PointCloudPtr;
 
             /***
+             * @brief leaf size for voxel downsampling
+             */
+            float leaf_size_;
+
+            /***
              * @brief `pcl::PointCloud<PointT>` adaptor for `nanoflann`
              */
             struct PointCloudAdaptor
@@ -218,8 +235,9 @@ namespace eststack
             /***
              * @brief get resolution of point cloud
              * @param cloud input point cloud
+             * @param leaf_size leaf size for get resolution
              */
-            float getPCLResolution(const PointCloudConstPtr &cloud)
+            float getPCLResolution(const PointCloudConstPtr &cloud, float leaf_size)
             {
                 if (!cloud || cloud->size() < 2)
                     return 0.1f;
@@ -232,7 +250,7 @@ namespace eststack
                     PointCloudPtr cloud_filtered(new PointCloud);
 
                     vg->setInputCloud(cloud);
-                    vg->setLeafSize(0.05f, 0.05f, 0.05f);
+                    vg->setLeafSize(leaf_size, leaf_size, leaf_size);
                     vg->filter(*cloud_filtered);
                     used_cloud = cloud_filtered;
                 }
