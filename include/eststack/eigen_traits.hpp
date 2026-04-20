@@ -16,11 +16,13 @@
 #define ESTSTACK__EIGEN_TRAITS_HPP
 
 // C++ standard library
-#include <limits>
 #include <exception>
+#include <limits>
+#include <array>
+#include <cmath>
 
 // Eigen library
-#include <Eigen/Dense>
+#include <Eigen/Core>
 #include <Eigen/Cholesky>
 #include <Eigen/SVD>
 

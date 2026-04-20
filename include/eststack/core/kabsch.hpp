@@ -16,20 +16,24 @@
 #define CORE__KABSCH_HPP
 
 // C++ standard library
-#include <limits>
 #include <exception>
+#include <cstddef>
+#include <limits>
 
 // Eigen library
-#include <Eigen/Dense>
+#include <Eigen/Geometry>
+#include <Eigen/Core>
 #include <Eigen/SVD>
 
 // PCL library
+#include <pcl/common/centroid.h>
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
-#include <pcl/common/centroid.h>
 
 // oneTBB library
-#include <oneapi/tbb.h>
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
+#include <tbb/combinable.h>
 
 /***
  * @brief An algorithm set focus on state estimation
@@ -43,63 +47,69 @@ namespace eststack
     namespace core
     {
         /***
-         * @brief check weights and compute their sum
-         * @tparam Index point index type
-         * @param weights weights of each point
-         * @param N number of points
+         * @brief details of core algorithms, not for public use
          */
-        template <typename Index>
-        float checkWeights(const Eigen::VectorXf &weights, Index N)
+        namespace details
         {
-            const Eigen::Index eigen_N = static_cast<Eigen::Index>(N);
-            if (weights.size() != eigen_N)
-                throw std::invalid_argument("weights size mismatch!");
-
-            /* compute sum of weights */
-            float weight_sum = 0.0f;
-            bool has_nonzero_weight = false;
-            for (Eigen::Index i = 0; i < eigen_N; ++i)
+            /***
+             * @brief check weights and compute their sum
+             * @tparam Index point index type
+             * @param weights weights of each point
+             * @param N number of points
+             */
+            template <typename Index>
+            float checkWeights(const Eigen::VectorXf &weights, Index N)
             {
-                const float weight = weights(i);
-                if (weight < 0.0f)
-                    throw std::invalid_argument("weights must be non-negative!");
-                has_nonzero_weight = has_nonzero_weight || (weight > 0.0f);
-                weight_sum += weight;
+                const Eigen::Index eigen_N = static_cast<Eigen::Index>(N);
+                if (weights.size() != eigen_N)
+                    throw std::invalid_argument("weights size mismatch!");
+
+                /* compute sum of weights */
+                float weight_sum = 0.0f;
+                bool has_nonzero_weight = false;
+                for (Eigen::Index i = 0; i < eigen_N; ++i)
+                {
+                    const float weight = weights(i);
+                    if (weight < 0.0f)
+                        throw std::invalid_argument("weights must be non-negative!");
+                    has_nonzero_weight = has_nonzero_weight || (weight > 0.0f);
+                    weight_sum += weight;
+                }
+
+                /* if have zero weights, return 0.0f */
+                if (!has_nonzero_weight)
+                    return 0.0f;
+
+                return weight_sum;
             }
 
-            /* if have zero weights, return 0.0f */
-            if (!has_nonzero_weight)
-                return 0.0f;
+            /***
+             * @brief solve and get transformation via SVD
+             * @param H covariance matrix
+             * @param source_centroid centroid of source points
+             * @param target_centroid centroid of target points
+             */
+            inline Eigen::Isometry3f solveTransform(const Eigen::Matrix3f &H,
+                                                    const Eigen::Vector3f &source_centroid,
+                                                    const Eigen::Vector3f &target_centroid)
+            {
+                /* SVD for best rotation */
+                Eigen::JacobiSVD<Eigen::Matrix3f> svd(H, Eigen::ComputeFullU | Eigen::ComputeFullV);
+                const auto &U = svd.matrixU();
+                const auto &V = svd.matrixV();
 
-            return weight_sum;
-        }
+                /* constrain rotation matrix to SO(3) */
+                Eigen::Matrix3f D = Eigen::Matrix3f::Identity();
+                if (U.determinant() * V.determinant() < 0.0f)
+                    D(2, 2) = -1.0f; /* if reflection, flip the sign */
 
-        /***
-         * @brief solve and get transformation via SVD
-         * @param H covariance matrix
-         * @param source_centroid centroid of source points
-         * @param target_centroid centroid of target points
-         */
-        inline Eigen::Isometry3f solveTransform(const Eigen::Matrix3f &H,
-                                                const Eigen::Vector3f &source_centroid,
-                                                const Eigen::Vector3f &target_centroid)
-        {
-            /* SVD for best rotation */
-            Eigen::JacobiSVD<Eigen::Matrix3f> svd(H, Eigen::ComputeFullU | Eigen::ComputeFullV);
-            const auto &U = svd.matrixU();
-            const auto &V = svd.matrixV();
-
-            /* constrain rotation matrix to SO(3) */
-            Eigen::Matrix3f D = Eigen::Matrix3f::Identity();
-            if (U.determinant() * V.determinant() < 0.0f)
-                D(2, 2) = -1.0f; /* if reflection, flip the sign */
-
-            /* compute translation */
-            Eigen::Isometry3f T = Eigen::Isometry3f::Identity();
-            T.linear() = U * D * V.transpose();
-            T.translation() = target_centroid - T.linear() * source_centroid;
-            return T;
-        }
+                /* compute translation */
+                Eigen::Isometry3f T = Eigen::Isometry3f::Identity();
+                T.linear() = U * D * V.transpose();
+                T.translation() = target_centroid - T.linear() * source_centroid;
+                return T;
+            }
+        } // namespace details
 
         /***
          * @brief get best rigid transformation via SVD
@@ -129,8 +139,8 @@ namespace eststack
 
             /* compute covariance matrix using TBB parallel reduction */
             Eigen::Matrix3f H = Eigen::Matrix3f::Zero();
-            /* if points num smaller than 2048, use normal loop */
-            if (N < static_cast<std::size_t>(2048))
+            /* if points num smaller than 5000, use normal loop */
+            if (N < static_cast<std::size_t>(5000))
             {
                 for (std::size_t i = 0; i < N; ++i)
                 {
@@ -159,7 +169,7 @@ namespace eststack
                                  { H += local; });
             }
 
-            return solveTransform(H, source_centroid, target_centroid);
+            return details::solveTransform(H, source_centroid, target_centroid);
         }
 
         /***
@@ -181,7 +191,7 @@ namespace eststack
 
             /* compute covariance matrix using TBB parallel reduction */
             Eigen::Matrix3f H = Eigen::Matrix3f::Zero();
-            if (N < 2048)
+            if (N < 5000)
             {
                 for (int i = 0; i < N; ++i)
                 {
@@ -210,7 +220,7 @@ namespace eststack
                                  { H += local; });
             }
 
-            return solveTransform(H, source_centroid, target_centroid);
+            return details::solveTransform(H, source_centroid, target_centroid);
         }
 
         /***
@@ -234,7 +244,7 @@ namespace eststack
                 throw std::invalid_argument("source/target pointcloud size mismatch!");
 
             /* check weights */
-            const float weight_sum = checkWeights(weights, N);
+            const float weight_sum = details::checkWeights(weights, N);
             if (weight_sum == 0.0f)
                 return kabsch(source, target);
             const float inv_weight_sum = 1.0f / weight_sum;
@@ -252,7 +262,7 @@ namespace eststack
 
             /* compute weighted covariance matrix using TBB parallel reduction */
             Eigen::Matrix3f H = Eigen::Matrix3f::Zero();
-            if (N < static_cast<size_t>(2048))
+            if (N < static_cast<size_t>(5000))
             {
                 for (size_t i = 0; i < N; ++i)
                 {
@@ -282,7 +292,7 @@ namespace eststack
             }
             H *= inv_weight_sum;
 
-            return solveTransform(H, source_centroid, target_centroid);
+            return details::solveTransform(H, source_centroid, target_centroid);
         }
 
         /***
@@ -302,7 +312,7 @@ namespace eststack
                 return Eigen::Isometry3f::Identity();
 
             /* check weights */
-            const float weight_sum = checkWeights(weights, N);
+            const float weight_sum = details::checkWeights(weights, N);
             if (weight_sum == 0.0f)
                 return kabsch(source, target);
             const float inv_weight_sum = 1.0f / weight_sum;
@@ -313,7 +323,7 @@ namespace eststack
 
             /* compute weighted covariance matrix using TBB parallel reduction */
             Eigen::Matrix3f H = Eigen::Matrix3f::Zero();
-            if (N < 2048)
+            if (N < 5000)
             {
                 for (int i = 0; i < N; ++i)
                 {
@@ -343,7 +353,7 @@ namespace eststack
             }
             H *= inv_weight_sum;
 
-            return solveTransform(H, source_centroid, target_centroid);
+            return details::solveTransform(H, source_centroid, target_centroid);
         }
     } // namespace core
 } // namespace eststack

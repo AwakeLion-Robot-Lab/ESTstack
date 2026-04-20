@@ -19,17 +19,17 @@
 #include <memory>
 
 // Eigen library
-#include <Eigen/Dense>
+#include <Eigen/Geometry>
+#include <Eigen/Core>
 
 // PCL library
+#include <pcl/common/transforms.h>
 #include <pcl/correspondence.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 
 // ESTstack library
 #include "eststack/core/voxelset.hpp"
-#include "eststack/eigen_traits.hpp"
-#include "eststack/types.hpp"
 
 /***
  * @brief An algorithm set focus on state estimation
@@ -181,13 +181,13 @@ namespace eststack
              */
             explicit BasePCR()
             {
-                voxel_evaluator_ = std::make_unique<eststack::core::VoxelSet<PointT>>();
+                voxel_evaluator_ = std::make_unique<core::VoxelSet<PointT>>();
             }
 
             /***
              * @brief voxel set for registration evaluation
              */
-            std::unique_ptr<eststack::core::VoxelSet<PointT>> voxel_evaluator_;
+            std::unique_ptr<core::VoxelSet<PointT>> voxel_evaluator_;
 
             /***
              * @brief source point cloud to be aligned

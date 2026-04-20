@@ -24,7 +24,7 @@
 
 // Eigen library
 #include <Eigen/Core>
-#include <Eigen/Dense>
+#include <Eigen/Geometry>
 
 // ESTstack library
 #include "eststack/model/sac/base_sac_model.hpp"
@@ -368,8 +368,8 @@ namespace eststack
                 /* get R and t via kabsch */
                 Eigen::Matrix3f source_sample = source_(Eigen::placeholders::all, samples);
                 Eigen::Matrix3f target_sample = target_(Eigen::placeholders::all, samples);
-                Eigen::Isometry3f T = eststack::core::kabsch(source_sample, target_sample);
-                Eigen::Quaternionf q = eststack::core::fromDCM(T.linear());
+                Eigen::Isometry3f T = core::kabsch(source_sample, target_sample);
+                Eigen::Quaternionf q = core::fromDCM(T.linear());
                 Eigen::Vector3f t = T.translation();
 
                 /* serialize into coefficients in proper sequence */

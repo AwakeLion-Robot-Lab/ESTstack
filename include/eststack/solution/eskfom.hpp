@@ -19,12 +19,12 @@
 #include <memory>
 
 // Eigen library
-#include <Eigen/Dense>
+#include <Eigen/Core>
 #include <Eigen/Cholesky>
 
 // ESTstack library
+#include "eststack/model/motion/base_motion_model.hpp"
 #include "eststack/solution/base_kf.hpp"
-#include "eststack/model/base_model.hpp"
 
 /***
  * @brief An algorithm set focus on state estimation
@@ -66,14 +66,14 @@ namespace eststack
 
             /***
              * @brief default constructor
+             * @param x0 initial state vector
+             * @param P0 initial state covariance matrix
+             * @param max_priori_nis_num maximum number of priori NIS to keep for convergence check
              */
-            ESKFOM(const State &x0, const Eigen::Ref<const StateCovariance> &P0,
-                   const int &max_priori_nis_num = 100)
-                : x_(this->setState(x0)), P_(this->setStateCovariance(P0)),
-                  max_priori_nis_num_(max_priori_nis_num)
+            ESKFOM(const State &x0, const Eigen::Ref<const StateCovariance> &P0, int max_priori_nis_num = 100) : Base(max_priori_nis_num)
             {
-                /* just keep up some priori innovations */
-                this->priori_nis_.reserve(this->max_priori_nis_num_);
+                this->setState(x0);
+                this->setStateCovariance(P0);
             }
 
             /***
@@ -83,10 +83,10 @@ namespace eststack
              * @param Q     process noise covariance
              * @param dt    time step
              */
-            template <eststack::model::TransitionModel TransitionModel, typename... Args>
+            template <eststack::TransitionModel TransitionModel, typename... Args>
             bool predictImpl(const TransitionModel &model,
                              const typename TransitionModel::ControlInput &u,
-                             const typename TransitionModel::ProcessNoise &Q,
+                             const typename TransitionModel::ProcessNoiseCovariance &Q,
                              const double &dt)
             {
                 const Tangent tau = model.compute(this->x_, u, dt);
@@ -112,10 +112,10 @@ namespace eststack
              * @param R     measurement noise covariance
              * @param dt    time step
              */
-            template <eststack::model::MeasurementModel MeasurementModel, typename... Args>
+            template <eststack::MeasurementModel MeasurementModel, typename... Args>
             bool updateImpl(const MeasurementModel &model,
                             const typename MeasurementModel::Measurement &z,
-                            const typename MeasurementModel::MeasNoise &R, const double &dt)
+                            const typename MeasurementModel::MeasNoiseCovariance &R, const double &dt)
             {
                 const auto z_pred = model.compute(this->x_, dt);
                 /* PLEASE refer to docs/explanation/model.md to figure out how to compute H */

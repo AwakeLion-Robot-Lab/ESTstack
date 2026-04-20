@@ -16,8 +16,6 @@
 #define PROBLEM__BASE_PROBLEM_HPP
 
 // C++ standard library
-#include <concepts>
-#include <type_traits>
 #include <utility>
 #include <memory>
 #include <exception>

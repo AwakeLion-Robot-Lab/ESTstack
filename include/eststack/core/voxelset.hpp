@@ -17,11 +17,13 @@
 
 // C++ standard library
 #include <unordered_set>
+#include <functional>
 #include <vector>
 #include <limits>
+#include <cmath>
 
 // Eigen library
-#include <Eigen/Dense>
+#include <Eigen/Core>
 
 // PCL library
 #include <pcl/point_cloud.h>

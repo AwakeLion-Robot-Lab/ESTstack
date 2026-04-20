@@ -16,7 +16,7 @@
 #define MODEL__ARMORS_HPP
 
 // Eigen library
-#include <Eigen/Dense>
+#include <Eigen/Core>
 
 // manif library
 #include <manif/Bundle.h>
@@ -24,8 +24,7 @@
 #include <manif/SO2.h>
 
 // ESTstack library
-#include "eststack/model/base_model.hpp"
-#include "eststack/types.hpp"
+#include "eststack/model/motion/base_motion_model.hpp"
 
 /***
  * @brief An algorithm set focus on state estimation
@@ -38,59 +37,103 @@ namespace eststack
     namespace model
     {
         /***
-         * @brief RM entire 4 armors motion model
-         * @details state: [x, y, z, vx, vy, vz, theta, omega, r, l, h]
-         *              - x, y, z: armor position in gun frame
-         *              - vx, vy, vz: armor velocity in gun frame
-         *              - theta: armor yaw angle (SO(2) manifold) in gun frame
-         *              - omega: armor yaw angular velocity
-         *              - r: distance from armor center to car center
-         *              - l: minus distance of long axis and short axis of the car
-         *              - h: height between two armors center
-         *
-         *          control input: [x, y, z, theta]
-         *          process noise: [vx, vy, vz, omega]
+         * @brief details of motion models, not for public use
+         */
+        namespace details
+        {
+            using ArmorsState = manif::Bundle<double, manif::R3, manif::R3, manif::SO2, manif::R1, manif::R1, manif::R1, manif::R1>;
+        } // namespace details
+
+        /***
+         * @brief RM four armors motion model
+         * @details state: [x, y, z, vx, vy, vz, theta, omega, r1, r2, h]
+         *              - x, y, z: car center position in nozzle frame
+         *              - vx, vy, vz: car velocity in nozzle frame
+         *              - theta: car yaw angle (SO(2) manifold) in nozzle frame
+         *              - omega: car yaw angular velocity
+         *              - r1: distances from car center to first type (0,2) armor center
+         *              - r2: distances from car center to second type (1,3) armor center
+         *              - h: height between two continuous armors center
+         *          process noise: $\[\dot{vx}, \dot{vy}, \dot{vz}, \dot{omega}\]$
+         *          control input: 0 input
          *
          *          reference: https://github.com/TongjiSuperPower/sp_vision_25/blob/main/tasks/auto_aim/target.cpp#L34
          */
-        class Armors final : public BaseTransitionModel<Armors>
+        class ArmorsTransistionModel final : public BaseTransitionModel<ArmorsTransistionModel, details::ArmorsState, Eigen::Vector4d>
         {
         public:
-            using State = manif::Bundle<double, manif::R3, manif::R3, manif::SO2, manif::R1, manif::R1, manif::R1, manif::R1>;
-            /* x y z theta */
-            using ControlInput = Eigen::Vector4d;
-            /* sigma_vx sigma_vy sigma_vz sigma_omega */
-            using ProcessNoise = Eigen::Vector4d;
-
-            using Base = BaseTransitionModel<Armors>;
-            using StateJacobian = typename Base::StateJacobian;
-            using NoiseJacobian = typename Base::NoiseJacobian;
-
-            [[deprecated]]
-            State autoComputeImpl(const State &x, const ControlInput &u,
-                                  Eigen::Ref<StateJacobian> Fx, Eigen::Ref<NoiseJacobian> Fw, const double &dt) const = delete;
-
             /***
-             * @brief compute the state jacobian
+             * @brief compute small increment via transition model
              * @param x current state
-             * @param u control input (dt)
-             * @return state jacobian matrix
+             * @param dt time step
+             * @return small increment in tangent space
              */
-            StateJacobian computeStateJacobianImpl(const State &x, const ControlInput &u, const double &dt)
+            State::Tangent computeImpl(const State &x, double dt) const
             {
-                StateJacobian Fx = StateJacobian::Identity();
-                return Fx;
+                /* get velocities */
+                const auto v = x.element<1>().coeffs();
+                const auto omega = x.element<3>().coeffs()(0);
+
+                /* compute small increment */
+                auto tau = State::Tangent::Zero();
+                /* pos = v * dt */
+                tau.coeffs().segment(0, 3) = v * dt;
+                /* angle = omega * dt */
+                tau.coeffs()(6) = omega * dt;
+                return tau;
             }
 
             /***
-             * @brief compute the noise jacobian
-             * @param x current state
-             * @param u control input (dt)
-             * @return noise jacobian matrix
+             * @brief compute jacobians of the transition model
+             * @param[in] x current state
+             * @param[in] dt time step
+             * @return state jacobian and noise jacobian
              */
-            NoiseJacobian computeNoiseJacobianImpl(const State &x, const ControlInput &u) const;
+            auto computeJacobiansImpl(const State &x, double dt) const
+                -> std::tuple<StateJacobian, NoiseJacobian>
+            {
+                /* compute `J_tau_dx` */
+                StateJacobian J_tau_dx = StateJacobian::Zero();
+                J_tau_dx.topLeftCorner(3, 3) = Eigen::Matrix3d::Identity() * dt;
+                J_tau_dx(6, 7) = dt;
+
+                /* compute `J_tau_i` */
+                NoiseJacobian J_tau_i = NoiseJacobian::Zero();
+
+                return std::make_tuple(J_tau_dx, J_tau_i);
+            }
         };
-    }
-}
+
+        /***
+         * @brief RM four armors motion model
+         * @details state and process noise are same as transition model
+         *          measurement: [x, y, z, theta]
+         *
+         *          reference: https://github.com/TongjiSuperPower/sp_vision_25/blob/main/tasks/auto_aim/target.cpp#L34
+         */
+        class ArmorsMeasModel final : public BaseMeasurementModel<ArmorsMeasModel, details::ArmorsState, Eigen::Vector4d, Eigen::Vector4d>
+        {
+            /***
+             * @brief compute expected measurement
+             * @param x current state
+             * @param dt time step
+             */
+            Measurement computeImpl(const State &x, double dt) const
+            {
+            }
+
+            /***
+             * @brief compute jacobians of the measurement model
+             * @param x current state
+             * @param dt time step
+             * @return measurement jacobian and noise jacobian
+             */
+            auto computeJacobiansImpl(const State &x, double dt) const
+                -> std::tuple<MeasJacobian, NoiseJacobian>
+            {
+            }
+        };
+    } // namespace model
+} // namespace eststack
 
 #endif //! MODEL__ARMORS_HPP

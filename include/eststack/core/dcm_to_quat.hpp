@@ -16,13 +16,14 @@
 #define CORE__DCM_TO_QUAT_HPP
 
 // C++ standard library
+#include <utility>
 #include <array>
 #include <cmath>
-#include <exception>
 
 // Eigen library
-#include <Eigen/Dense>
 #include <Eigen/Eigenvalues>
+#include <Eigen/Geometry>
+#include <Eigen/Core>
 
 // ESTstack library
 #include "eststack/eigen_traits.hpp"
@@ -38,30 +39,6 @@ namespace eststack
      */
     namespace core
     {
-        /***
-         * @brief get best quaternion from DCM, even if the DCM is not orthogonal
-         * @param dcm direction cosine matrix
-         * @return best quaternion
-         * @details see `sarabandi` and `bar_itzhack`
-         */
-        Eigen::Quaternionf fromDCM(const Eigen::Matrix3f &dcm)
-        {
-            if (isRotationMatrix(dcm))
-            {
-                /* if DCM is a valid rotation matrix, use the fast method */
-                return sarabandi(dcm);
-            }
-            else
-            {
-                /* if DCM is ill-conditioned seriously, return a default quaternion */
-                if (getConditionNumber(dcm) > 1e5)
-                    return Eigen::Quaternionf::Identity();
-
-                /* if DCM is not orthogonal but well-conditioned, use the robust method */
-                return bar_itzhack(dcm);
-            }
-        }
-
         /***
          * @brief Sarabandi's method to extract precise DCM to quaternion
          * @param dcm direction cosine matrix
@@ -156,25 +133,6 @@ namespace eststack
         }
 
         /***
-         * @brief Bar-Itzhack's method to extract DCM (even not orthogonal) to quaternion
-         * @param dcm direction cosine matrix
-         * @return best quaternion
-         * @details refer to [18], here I ONLY implement Version 3 algorithm 'cause ONLY it can handle non-orthogonal DCM
-         */
-        Eigen::Quaternionf bar_itzhack(const Eigen::Matrix3f &dcm)
-        {
-            auto vec_pairs = std::array<std::pair<Eigen::Vector3f, Eigen::Vector3f>, 3>{
-                std::make_pair(dcm.row(0), Eigen::Vector3f::UnitX()),
-                std::make_pair(dcm.row(1), Eigen::Vector3f::UnitY()),
-                std::make_pair(dcm.row(2), Eigen::Vector3f::UnitZ())};
-
-            const float weight_val = 1.0f / 3.0f;
-            auto weights = std::array<float, 3>{weight_val, weight_val, weight_val};
-
-            return steady_q_method(vec_pairs, weights);
-        }
-
-        /***
          * @brief get best quaternion via eigenvalue decomposition from 3 vector pairs
          * @param vec_pairs array of 3 vector pairs `(u_i, v_i)` where `u_i` is in body frame, `v_i` is in reference frame
          * @param weights weights for each vector pair
@@ -235,6 +193,49 @@ namespace eststack
              * just focus on constructor 2/9 and 7/9, here q(0) is real part, use constructor 2/9
              */
             return Eigen::Quaternionf(q(0), q(1), q(2), q(3)).normalized();
+        }
+
+        /***
+         * @brief Bar-Itzhack's method to extract DCM (even not orthogonal) to quaternion
+         * @param dcm direction cosine matrix
+         * @return best quaternion
+         * @details refer to [18], here I ONLY implement Version 3 algorithm 'cause ONLY it can handle non-orthogonal DCM
+         */
+        Eigen::Quaternionf bar_itzhack(const Eigen::Matrix3f &dcm)
+        {
+            auto vec_pairs = std::array<std::pair<Eigen::Vector3f, Eigen::Vector3f>, 3>{
+                std::make_pair(dcm.row(0), Eigen::Vector3f::UnitX()),
+                std::make_pair(dcm.row(1), Eigen::Vector3f::UnitY()),
+                std::make_pair(dcm.row(2), Eigen::Vector3f::UnitZ())};
+
+            const float weight_val = 1.0f / 3.0f;
+            auto weights = std::array<float, 3>{weight_val, weight_val, weight_val};
+
+            return core::steady_q_method(vec_pairs, weights);
+        }
+
+        /***
+         * @brief get best quaternion from DCM, even if the DCM is not orthogonal
+         * @param dcm direction cosine matrix
+         * @return best quaternion
+         * @details see `sarabandi` and `bar_itzhack`
+         */
+        Eigen::Quaternionf fromDCM(const Eigen::Matrix3f &dcm)
+        {
+            if (eststack::isRotationMatrix(dcm))
+            {
+                /* if DCM is a valid rotation matrix, use the fast method */
+                return core::sarabandi(dcm);
+            }
+            else
+            {
+                /* if DCM is ill-conditioned seriously, return a default quaternion */
+                if (eststack::getConditionNumber(dcm) > 1e5)
+                    return Eigen::Quaternionf::Identity();
+
+                /* if DCM is not orthogonal but well-conditioned, use the robust method */
+                return core::bar_itzhack(dcm);
+            }
         }
     } // namespace core
 } // namespace eststack

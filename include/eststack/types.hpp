@@ -19,7 +19,7 @@
 #include <concepts>
 
 // Eigen library
-#include <Eigen/Dense>
+#include <Eigen/Core>
 
 // ESTstack library
 #include "eststack/concepts.hpp"

@@ -16,20 +16,14 @@
 #define SOLUTION__BASE_KF_HPP
 
 // C++ standard library
-#include <array>
-#include <concepts>
-#include <type_traits>
 #include <utility>
 #include <deque>
-#include <cmath>
 
 // Eigen library
-#include <Eigen/Dense>
+#include <Eigen/Core>
 
 // ESTstack library
 #include "eststack/types.hpp"
-#include "eststack/eigen_traits.hpp"
-#include "eststack/concepts.hpp"
 
 /***
  * @brief An algorithm set focus on state estimation
@@ -94,13 +88,14 @@ namespace eststack
              * @brief prediction step
              * @tparam TransitionModel transition model of the system
              * @tparam ControlInput control input
+             * @tparam ProcessNoiseCovariance process noise covariance
              * @tparam Args additional arguments, e.g. bias or white noise, etc.
              * @param F transition matrix
              * @param u control input vector
              * @param args additional arguments
              */
-            template <typename TransitionModel, typename ControlInput, typename ProcessNoise, typename... Args>
-            bool predict(const TransitionModel &model, const ControlInput &u, const ProcessNoise &Q, Args &&...args)
+            template <typename TransitionModel, typename ControlInput, typename ProcessNoiseCovariance, typename... Args>
+            bool predict(const TransitionModel &model, const ControlInput &u, const ProcessNoiseCovariance &Q, Args &&...args)
             {
                 return static_cast<Derived *>(this)->predictImpl(model, u, Q, std::forward<Args>(args)...);
             }
@@ -109,15 +104,15 @@ namespace eststack
              * @brief update step
              * @tparam MeasurementModel measurement model
              * @tparam Measurement measurement vector
-             * @tparam MeasNoise measurement noise covariance
+             * @tparam MeasNoiseCovariance measurement noise covariance
              * @tparam Args additional arguments
              * @param model measurement model
              * @param z measurement vector
              * @param R measurement noise covariance
              * @param args additional arguments
              */
-            template <typename MeasurementModel, typename Measurement, typename MeasNoise, typename... Args>
-            bool update(const MeasurementModel &model, const Measurement &z, const MeasNoise &R, Args &&...args)
+            template <typename MeasurementModel, typename Measurement, typename MeasNoiseCovariance, typename... Args>
+            bool update(const MeasurementModel &model, const Measurement &z, const MeasNoiseCovariance &R, Args &&...args)
             {
                 return static_cast<Derived *>(this)->updateImpl(model, z, R, std::forward<Args>(args)...);
             }
@@ -125,9 +120,10 @@ namespace eststack
         protected:
             /***
              * @brief default constructor
+             * @param max_priori_nis_num maximum number of priori NIS to keep for convergence check
              * @details protected to prevent direct instantiation of base class, only allow derived classes to construct
              */
-            BaseKF() = default;
+            BaseKF(int max_priori_nis_num = 100) : max_priori_nis_num_(max_priori_nis_num) {}
 
             /***
              * @brief state vector

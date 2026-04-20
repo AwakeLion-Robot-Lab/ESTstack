@@ -16,11 +16,6 @@
 #define CORE__BASE_SAC_HPP
 
 // C++ standard library
-#include <cmath>
-#include <limits>
-#include <numeric>
-#include <random>
-#include <algorithm>
 #include <vector>
 
 // ESTstack library

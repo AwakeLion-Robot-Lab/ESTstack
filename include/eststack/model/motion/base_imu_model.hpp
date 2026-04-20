@@ -16,7 +16,7 @@
 #define MODEL__BASE_IMU_MODEL_HPP
 
 // Eigen library
-#include <Eigen/Dense>
+#include <Eigen/Core>
 
 // manif library
 #include <manif/Bundle.h>
@@ -24,7 +24,7 @@
 #include <manif/Rn.h>
 
 // ESTstack library
-#include "eststack/model/base_model.hpp"
+#include "eststack/model/motion/base_motion_model.hpp"
 #include "eststack/types.hpp"
 
 /***
@@ -40,11 +40,16 @@ namespace eststack
     {
         /***
          * @brief base class for IMU model
+         * @tparam Derived derived IMU model class
+         * @tparam StateT state type
+         * @tparam ControlInputT control input type
+         * @tparam ProcessNoiseT process noise vector type
          */
-        class BaseIMUModel : public BaseTransitionModel<BaseIMUModel>
+        template <typename Derived, typename StateT, typename ControlInputT, typename ProcessNoiseT>
+        class BaseIMUModel : public BaseTransitionModel<Derived, StateT, ControlInputT, ProcessNoiseT>
         {
         };
-    }
-}
+    } // namespace model
+} // namespace eststack
 
 #endif //! MODEL__BASE_IMU_MODEL_HPP

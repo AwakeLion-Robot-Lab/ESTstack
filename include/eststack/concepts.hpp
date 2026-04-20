@@ -21,11 +21,7 @@
 #include <vector>
 
 // Eigen library
-#include <Eigen/Dense>
-
-// PCL library
-#include <pcl/point_cloud.h>
-#include <pcl/point_types.h>
+#include <Eigen/Core>
 
 /***
  * @brief An algorithm set focus on estimation and filtering
@@ -127,24 +123,37 @@ namespace eststack
 
     /***
      * @brief transition model concept
+     * @details `ControlInput = void` selects the autonomous flavor: `compute`/`computeJacobians`
+     *          take only `(x, dt)` and `autoCompute` is not required. Non-void `ControlInput`
+     *          selects the controlled flavor with `u`.
      */
     template <typename T>
-    concept TransitionModel = requires(T model) {
+    concept TransitionModel = requires {
         typename T::State;
         typename T::Scalar;
         typename T::ControlInput;
         typename T::ProcessNoise;
+        typename T::ProcessNoiseCovariance;
         typename T::StateJacobian;
         /* for dim(T_I(M)) != dim(control input), like SE_2(3) and mostly Bundle */
         typename T::NoiseJacobian;
-
-        {
-            model.autoCompute(std::declval<typename T::State>(), std::declval<typename T::ControlInput>(), std::declval<double>(),
-                              std::declval<Eigen::Ref<typename T::StateJacobian>>(), std::declval<Eigen::Ref<typename T::NoiseJacobian>>())
-        } -> std::same_as<typename T::State>;
-        { model.compute(std::declval<typename T::State>(), std::declval<typename T::ControlInput>(), std::declval<double>()) } -> std::same_as<typename T::State::Tangent>;
-        { model.computeJacobians(std::declval<typename T::State>(), std::declval<typename T::ControlInput>(), std::declval<double>()) } -> std::same_as<std::tuple<typename T::StateJacobian, typename T::NoiseJacobian>>;
-    };
+    } && (
+        /* autonomous: ControlInput = void */
+        (std::is_void_v<typename T::ControlInput> && requires(T model) {
+            { model.compute(std::declval<typename T::State>(), std::declval<double>()) } -> std::same_as<typename T::State::Tangent>;
+            { model.computeJacobians(std::declval<typename T::State>(), std::declval<double>()) } -> std::same_as<std::tuple<typename T::StateJacobian, typename T::NoiseJacobian>>;
+        })
+        ||
+        /* controlled: ControlInput is non-void */
+        (!std::is_void_v<typename T::ControlInput> && requires(T model) {
+            {
+                model.autoCompute(std::declval<typename T::State>(), std::declval<typename T::ControlInput>(), std::declval<double>(),
+                                  std::declval<Eigen::Ref<typename T::StateJacobian>>(), std::declval<Eigen::Ref<typename T::NoiseJacobian>>())
+            } -> std::same_as<typename T::State>;
+            { model.compute(std::declval<typename T::State>(), std::declval<typename T::ControlInput>(), std::declval<double>()) } -> std::same_as<typename T::State::Tangent>;
+            { model.computeJacobians(std::declval<typename T::State>(), std::declval<typename T::ControlInput>(), std::declval<double>()) } -> std::same_as<std::tuple<typename T::StateJacobian, typename T::NoiseJacobian>>;
+        })
+    );
 
     /***
      * @brief measurement model concept
@@ -154,6 +163,7 @@ namespace eststack
         typename T::State;
         typename T::Measurement;
         typename T::MeasNoise;
+        typename T::MeasNoiseCovariance;
         typename T::MeasJacobian;
         /* for dim(measurement) != dim(measurement noise) */
         typename T::NoiseJacobian;
@@ -167,14 +177,13 @@ namespace eststack
      */
     template <typename T>
     concept KalmanFilter = requires(T kf) {
-        typename T::StateT;
+        typename T::State;
         typename T::StateCovariance;
-        { kf.setState(std::declval<typename T::StateT>()) } -> std::same_as<void>;
-        { kf.getState() } -> std::same_as<const typename T::StateT &>;
+
+        { kf.setState(std::declval<const typename T::State &>()) } -> std::same_as<void>;
+        { kf.getState() } -> std::same_as<const typename T::State &>;
         { kf.setStateCovariance(std::declval<Eigen::Ref<const typename T::StateCovariance>>()) } -> std::same_as<void>;
         { kf.getStateCovariance() } -> std::same_as<const typename T::StateCovariance &>;
-        { kf.predict(std::declval<typename T::TransitionModel>(), std::declval<typename T::ControlInput>(), std::declval<typename T::ProcessNoise>()) } -> std::convertible_to<bool>;
-        { kf.update(std::declval<typename T::MeasurementModel>(), std::declval<typename T::Measurement>(), std::declval<typename T::MeasNoise>()) } -> std::convertible_to<bool>;
     };
 
     /***
@@ -182,9 +191,8 @@ namespace eststack
      */
     template <typename T>
     concept PointCloudRegistration = requires(T pcr) {
-        typename T::PointT;
-        { pcr.setInputSource(std::declval<typename pcl::PointCloud<typename T::PointT>::ConstPtr>()) } -> std::same_as<void>;
-        { pcr.setInputTarget(std::declval<typename pcl::PointCloud<typename T::PointT>::ConstPtr>()) } -> std::same_as<void>;
+        { pcr.setInputSource(std::declval<const typename T::PointCloudConstPtr &>()) } -> std::same_as<void>;
+        { pcr.setInputTarget(std::declval<const typename T::PointCloudConstPtr &>()) } -> std::same_as<void>;
         { pcr.align() } -> std::same_as<bool>;
     };
 }

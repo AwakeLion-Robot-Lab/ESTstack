@@ -16,11 +16,10 @@
 #define MODEL__BASE_SAC_MODEL_HPP
 
 // C++ standard library
-#include <vector>
 #include <memory>
 
 // Eigen library
-#include <Eigen/Dense>
+#include <Eigen/Core>
 
 /***
  * @brief An algorithm set focus on state estimation
@@ -33,6 +32,10 @@ namespace eststack
      */
     namespace model
     {
+        /***
+         * @brief base class for SAmple Consensus model
+         * @tparam Derived derived class of the base SAC model
+         */
         template <typename Derived>
         class BaseSACModel
         {

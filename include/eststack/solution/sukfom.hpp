@@ -19,11 +19,11 @@
 #include <memory>
 
 // Eigen library
-#include <Eigen/Dense>
+#include <Eigen/Core>
 
 // ESTstack library
+#include "eststack/model/motion/base_motion_model.hpp"
 #include "eststack/solution/base_kf.hpp"
-#include "eststack/model/base_model.hpp"
 
 /***
  * @brief An algorithm set focus on estimation and filtering
@@ -49,7 +49,6 @@ namespace eststack
             using Scalar = typename State::Scalar;
             using Tangent = typename State::Tangent;
             using StateCovariance = typename Base::StateCovariance;
-            using UpdateResult = typename Base::UpdateResult;
 
             using Ptr = std::shared_ptr<SUKFOM>;
             using ConstPtr = std::shared_ptr<const SUKFOM>;

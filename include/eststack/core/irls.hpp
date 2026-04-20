@@ -16,18 +16,19 @@
 #define CORE__IRLS_HPP
 
 // C++ standard library
-#include <cmath>
+#include <memory>
 #include <limits>
 #include <vector>
+#include <cmath>
 
 // Eigen library
+#include <Eigen/Geometry>
 #include <Eigen/Core>
-#include <Eigen/Dense>
 
 // ESTstack library
-#include "eststack/concepts.hpp"
-#include "eststack/core/kabsch.hpp"
 #include "eststack/eigen_traits.hpp"
+#include "eststack/core/kabsch.hpp"
+#include "eststack/concepts.hpp"
 
 /***
  * @brief An algorithm set focus on state estimation
@@ -51,7 +52,7 @@ namespace eststack
             /***
              * @brief assign weight for each residual
              */
-            inline float weight(float residual, float scale)
+            inline float weight(float residual, float scale) const
             {
                 float scale_sq = scale * scale;
                 float res_sq = residual * residual;
@@ -61,7 +62,7 @@ namespace eststack
             /***
              * @brief check whether is inlier via residual
              */
-            inline bool isInlier(float residual, float scale)
+            inline bool isInlier(float residual, float scale) const
             {
                 return std::abs(residual) < 3.0f * scale;
             }
@@ -78,7 +79,7 @@ namespace eststack
             /***
              * @brief assign weight for each residual
              */
-            inline float weight(float residual, float scale)
+            inline float weight(float residual, float scale) const
             {
                 float abs_res = std::abs(residual);
                 if (abs_res <= scale)
@@ -90,7 +91,7 @@ namespace eststack
             /***
              * @brief check whether is inlier via residual
              */
-            inline bool isInlier(float residual, float scale)
+            inline bool isInlier(float residual, float scale) const
             {
                 return std::abs(residual) < 3.0f * scale;
             }
@@ -240,7 +241,7 @@ namespace eststack
 
                     /* compute transform via weighted kabsch */
                     if (iter > 1)
-                        trans = eststack::core::weightedKabsch(source_current, target_current, weights);
+                        trans = core::weightedKabsch(source_current, target_current, weights);
                     Eigen::Matrix3f R = trans.linear();
                     Eigen::Vector3f t = trans.translation();
 

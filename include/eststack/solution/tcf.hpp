@@ -16,12 +16,15 @@
 #define SOLUTION__TCF_HPP
 
 // C++ standard library
+#include <algorithm>
 #include <memory>
 #include <random>
-#include <algorithm>
+#include <vector>
+#include <cmath>
 
 // Eigen library
-#include <Eigen/Dense>
+#include <Eigen/Core>
+#include <Eigen/Geometry>
 
 // PCL library
 #include <pcl/point_cloud.h>
@@ -68,6 +71,10 @@ namespace eststack
             using Base::target_match_;
             using Base::voxel_evaluator_;
 
+            using typename Base::PointCloud;
+            using typename Base::PointCloudConstPtr;
+            using typename Base::PointCloudPtr;
+
             using Ptr = std::shared_ptr<TCF<PointT>>;
             using ConstPtr = std::shared_ptr<const TCF<PointT>>;
 
@@ -75,8 +82,7 @@ namespace eststack
              * @brief default constructor
              * @param leaf_size leaf size for voxel downsampling
              */
-            explicit TCF(float leaf_size = 0.5f)
-                : Base(), leaf_size_(leaf_size) {}
+            explicit TCF(float leaf_size = 0.5f) : leaf_size_(leaf_size) {}
 
             /***
              * @brief set leaf size
@@ -101,12 +107,12 @@ namespace eststack
                 const float inlier_threshold = std::max(source_resolution, target_resolution);
 
                 /* stage 1: length consistency coarse ransac */
-                auto OneStageModel = std::make_shared<eststack::model::OnePtSACModel>();
+                auto OneStageModel = std::make_shared<model::OnePtSACModel>();
                 OneStageModel->setInputSource(this->source_match_);
                 OneStageModel->setInputTarget(this->target_match_);
                 OneStageModel->setInlierThreshold(inlier_threshold);
 
-                auto OneStageRANSAC = std::make_shared<eststack::core::RANSAC<eststack::model::OnePtSACModel>>();
+                auto OneStageRANSAC = std::make_shared<core::RANSAC<model::OnePtSACModel>>();
                 OneStageRANSAC->setSACModel(OneStageModel);
                 OneStageRANSAC->optimize();
 
@@ -121,12 +127,12 @@ namespace eststack
                 Eigen::Matrix3Xf one_stage_target_inliers = this->target_match_(Eigen::placeholders::all, one_stage_inliers);
 
                 /* stage 2: angular discrepancy mid ransac */
-                auto TwoStageModel = std::make_shared<eststack::model::TwoPtSACModel>();
+                auto TwoStageModel = std::make_shared<model::TwoPtSACModel>();
                 TwoStageModel->setInputSource(one_stage_source_inliers);
                 TwoStageModel->setInputTarget(one_stage_target_inliers);
                 TwoStageModel->setInlierThreshold(inlier_threshold);
 
-                auto TwoStageRANSAC = std::make_shared<eststack::core::RANSAC<eststack::model::TwoPtSACModel>>();
+                auto TwoStageRANSAC = std::make_shared<core::RANSAC<model::TwoPtSACModel>>();
                 TwoStageRANSAC->setSACModel(TwoStageModel);
                 TwoStageRANSAC->optimize();
 
@@ -141,12 +147,12 @@ namespace eststack
                 Eigen::Matrix3Xf two_stage_target_inliers = one_stage_target_inliers(Eigen::placeholders::all, two_stage_inliers);
 
                 /* stage 3: kabsch ransac for coarse rigid transformation */
-                auto RigidMotionModel = std::make_shared<eststack::model::ThreePtSACModel>();
+                auto RigidMotionModel = std::make_shared<model::ThreePtSACModel>();
                 RigidMotionModel->setInputSource(two_stage_source_inliers);
                 RigidMotionModel->setInputTarget(two_stage_target_inliers);
                 RigidMotionModel->setInlierThreshold(inlier_threshold);
 
-                auto RigidMotionRANSAC = std::make_shared<eststack::core::RANSAC<eststack::model::ThreePtSACModel>>();
+                auto RigidMotionRANSAC = std::make_shared<core::RANSAC<model::ThreePtSACModel>>();
                 RigidMotionRANSAC->setSACModel(RigidMotionModel);
                 RigidMotionRANSAC->optimize();
 
@@ -185,8 +191,8 @@ namespace eststack
                 Eigen::Isometry3f init_guess = Eigen::Isometry3f::Identity();
                 init_guess.linear() = R;
                 init_guess.translation() = t;
-                auto sa_cauchy = std::make_shared<eststack::core::CauchyLoss>();
-                auto IRLS = std::make_shared<eststack::core::RigidIRLS<eststack::core::CauchyLoss>>();
+                auto sa_cauchy = std::make_shared<core::CauchyLoss>();
+                auto IRLS = std::make_shared<core::RigidIRLS<core::CauchyLoss>>();
                 IRLS->setInputSource(coarse_refined_source_inliers);
                 IRLS->setInputTarget(coarse_refined_target_inliers);
                 IRLS->setInitGuess(init_guess);
@@ -200,10 +206,6 @@ namespace eststack
             }
 
         private:
-            using PointCloud = typename Base::PointCloud;
-            using PointCloudConstPtr = typename Base::PointCloudConstPtr;
-            using PointCloudPtr = typename Base::PointCloudPtr;
-
             /***
              * @brief leaf size for voxel downsampling
              */

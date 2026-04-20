@@ -16,7 +16,7 @@
 #define CORE__ESGVI_HPP
 
 // Eigen library
-#include <Eigen/Dense>
+#include <Eigen/Core>
 
 /***
  * @brief An algorithm set focus on state estimation
