@@ -2,9 +2,9 @@ name: build-and-test
 
 on:
     push:
-        branches: [main]
+        branches: [ main ]
     pull_request:
-        branches: [main]
+        branches: [ main ]
 
 env:
     CTEST_OUTPUT_ON_FAILURE: 1
@@ -15,9 +15,9 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                os: [ubuntu-24.04]
-                build_type: [release, debug]
-                compiler: [{ "cc": "gcc", "cxx": "g++" }]
+                os: [ ubuntu-24.04 ]
+                build_type: [ release, debug ]
+                compiler: [ { "cc": "gcc", "cxx": "g++" } ]
         env:
             CC: ${{ matrix.compiler.cc }}
             CXX: ${{ matrix.compiler.cxx }}
@@ -31,7 +31,7 @@ jobs:
             - name: setup
               run: |
                   sudo apt update
-                  sudo apt install -y libssl-dev
+                  sudo apt install -y libssl-dev libtbb-dev
                   bash <(curl -fsSL https://raw.githubusercontent.com/tboox/xmake/master/scripts/get.sh)
 
             - name: build and test

@@ -4,6 +4,8 @@
 
 $\mathscr{Model,\ Match,\ Estimate\ In\ Stack.}$
 
+[![build-and-test](https://github.com/AwakeLion-Robot-Lab/ESTstack/actions/workflows/ci.yml/badge.svg)](https://github.com/AwakeLion-Robot-Lab/ESTstack/actions/workflows/ci.yml)
+
 </div>
 
 ## Introduction
