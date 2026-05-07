@@ -16,8 +16,10 @@
 #define ESTSTACK__CONCEPTS_HPP
 
 // C++ standard library
-#include <concepts>
 #include <type_traits>
+#include <concepts>
+#include <optional>
+#include <utility>
 #include <vector>
 
 // Eigen library
@@ -89,7 +91,7 @@ namespace eststack
     concept EstProblem = requires(T prob) {
         { prob.isInitialized() } -> std::convertible_to<bool>;
         { prob.setState(std::declval<const typename T::State &>()) } -> std::same_as<void>;
-        { prob.getState() } -> std::same_as<typename T::State>;
+        { prob.getState() } -> std::same_as<const typename T::State &>;
         { prob.setSolution(std::declval<typename T::Solution>()) } -> std::same_as<void>;
         { prob.run() } -> std::same_as<bool>;
     };
@@ -123,9 +125,6 @@ namespace eststack
 
     /***
      * @brief transition model concept
-     * @details `ControlInput = void` selects the autonomous flavor: `compute`/`computeJacobians`
-     *          take only `(x, dt)` and `autoCompute` is not required. Non-void `ControlInput`
-     *          selects the controlled flavor with `u`.
      */
     template <typename T>
     concept TransitionModel = requires {
@@ -138,28 +137,37 @@ namespace eststack
         /* for dim(T_I(M)) != dim(control input), like SE_2(3) and mostly Bundle */
         typename T::NoiseJacobian;
     } && (
-        /* autonomous: ControlInput = void */
-        (std::is_void_v<typename T::ControlInput> && requires(T model) {
-            { model.compute(std::declval<typename T::State>(), std::declval<double>()) } -> std::same_as<typename T::State::Tangent>;
-            { model.computeJacobians(std::declval<typename T::State>(), std::declval<double>()) } -> std::same_as<std::tuple<typename T::StateJacobian, typename T::NoiseJacobian>>;
-        })
-        ||
-        /* controlled: ControlInput is non-void */
-        (!std::is_void_v<typename T::ControlInput> && requires(T model) {
-            {
-                model.autoCompute(std::declval<typename T::State>(), std::declval<typename T::ControlInput>(), std::declval<double>(),
-                                  std::declval<Eigen::Ref<typename T::StateJacobian>>(), std::declval<Eigen::Ref<typename T::NoiseJacobian>>())
-            } -> std::same_as<typename T::State>;
-            { model.compute(std::declval<typename T::State>(), std::declval<typename T::ControlInput>(), std::declval<double>()) } -> std::same_as<typename T::State::Tangent>;
-            { model.computeJacobians(std::declval<typename T::State>(), std::declval<typename T::ControlInput>(), std::declval<double>()) } -> std::same_as<std::tuple<typename T::StateJacobian, typename T::NoiseJacobian>>;
-        })
-    );
+                                  /* autonomous: `ControlInput` = `void` */
+                                  (std::is_void_v<typename T::ControlInput> && requires(T model, typename T::State x, double dt) {
+                                      { model.compute(x, dt) } -> std::convertible_to<typename T::State::Tangent>;
+                                      {
+                                          model.computeJacobians(x, dt,
+                                                                 std::declval<Eigen::Ref<typename T::StateJacobian>>(),
+                                                                 std::declval<Eigen::Ref<typename T::NoiseJacobian>>())
+                                      } -> std::convertible_to<bool>;
+                                  }) ||
+                                  /* controlled: `ControlInput` is non-`void` */
+                                  (!std::is_void_v<typename T::ControlInput> && requires(T model, typename T::State x, typename T::ControlInput u, double dt) {
+                                      {
+                                          model.autoCompute(x, u, dt,
+                                                            std::declval<Eigen::Ref<typename T::StateJacobian>>(),
+                                                            std::declval<Eigen::Ref<typename T::NoiseJacobian>>())
+                                      } -> std::convertible_to<typename T::State>;
+                                      { model.compute(x, u, dt) } -> std::convertible_to<typename T::State::Tangent>;
+                                      {
+                                          model.computeJacobians(x, u, dt,
+                                                                 std::declval<Eigen::Ref<typename T::StateJacobian>>(),
+                                                                 std::declval<Eigen::Ref<typename T::NoiseJacobian>>())
+                                      } -> std::convertible_to<bool>;
+                                  }));
 
     /***
      * @brief measurement model concept
      */
     template <typename T>
-    concept MeasurementModel = requires(T model) {
+    concept MeasurementModel = requires(T model,
+                                        typename T::State x,
+                                        double dt) {
         typename T::State;
         typename T::Measurement;
         typename T::MeasNoise;
@@ -168,8 +176,12 @@ namespace eststack
         /* for dim(measurement) != dim(measurement noise) */
         typename T::NoiseJacobian;
 
-        { model.compute(std::declval<typename T::State>(), std::declval<double>()) } -> std::same_as<typename T::Measurement>;
-        { model.computeJacobians(std::declval<typename T::State>(), std::declval<double>()) } -> std::same_as<std::tuple<typename T::MeasJacobian, typename T::NoiseJacobian>>;
+        { model.compute(x, dt) } -> std::convertible_to<std::optional<typename T::Measurement>>;
+        {
+            model.computeJacobians(x, dt,
+                                   std::declval<Eigen::Ref<typename T::MeasJacobian>>(),
+                                   std::declval<Eigen::Ref<typename T::NoiseJacobian>>())
+        } -> std::convertible_to<bool>;
     };
 
     /***
@@ -190,10 +202,23 @@ namespace eststack
      * @brief point cloud registration concept
      */
     template <typename T>
-    concept PointCloudRegistration = requires(T pcr) {
-        { pcr.setInputSource(std::declval<const typename T::PointCloudConstPtr &>()) } -> std::same_as<void>;
-        { pcr.setInputTarget(std::declval<const typename T::PointCloudConstPtr &>()) } -> std::same_as<void>;
+    concept PCR = requires(T pcr,
+                           const typename T::PointCloudConstPtr &cloud,
+                           const Eigen::Matrix3Xf &source_match,
+                           const Eigen::Matrix3Xf &target_match,
+                           typename T::Result &result) {
+        typename T::PointCloud;
+        typename T::PointCloudPtr;
+        typename T::PointCloudConstPtr;
+        typename T::Result;
+
+        { pcr.setInputSource(cloud) } -> std::same_as<void>;
+        { pcr.setInputTarget(cloud) } -> std::same_as<void>;
+        { pcr.setInputCorrespondences(source_match, target_match) } -> std::same_as<void>;
+        { pcr.setVoxelResolution(std::declval<float>()) } -> std::same_as<void>;
         { pcr.align() } -> std::same_as<bool>;
+        { pcr.evaluate() } -> std::same_as<void>;
+        { pcr.getResult(result) } noexcept -> std::same_as<void>;
     };
 }
 

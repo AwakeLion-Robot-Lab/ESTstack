@@ -5,6 +5,10 @@ on:
         branches: [ main ]
     pull_request:
         branches: [ main ]
+    workflow_dispatch:
+
+permissions:
+    contents: read
 
 env:
     CTEST_OUTPUT_ON_FAILURE: 1
@@ -12,10 +16,11 @@ env:
 jobs:
     build-ubuntu:
         runs-on: ${{ matrix.os }}
+        timeout-minutes: 90
         strategy:
             fail-fast: false
             matrix:
-                os: [ ubuntu-24.04 ]
+                os: [ ubuntu-22.04 ]
                 build_type: [ release, debug ]
                 compiler: [ { "cc": "gcc", "cxx": "g++" } ]
         env:
@@ -28,14 +33,39 @@ jobs:
                   # get all the branches and tags
                   fetch-depth: 0
                   persist-credentials: false
-            - name: setup
+            - name: install system dependencies
               run: |
-                  sudo apt update
-                  sudo apt install -y libssl-dev libtbb-dev
-                  bash <(curl -fsSL https://raw.githubusercontent.com/tboox/xmake/master/scripts/get.sh)
+                  sudo apt-get update
+                  sudo apt-get install -y --no-install-recommends \
+                      build-essential \
+                      ca-certificates \
+                      curl \
+                      git \
+                      libgl1-mesa-dev \
+                      libssl-dev \
+                      libtbb-dev \
+                      libtool \
+                      ninja-build \
+                      pkg-config \
+                      unzip
+
+            - name: setup cmake
+              uses: jwlawson/actions-setup-cmake@v2.2
+              with:
+                  cmake-version: "3.31.0"
+
+            - name: setup xmake
+              uses: xmake-io/github-action-setup-xmake@v1.2.5
+              with:
+                  xmake-version: "2.9.8"
+                  actions-cache-folder: ".xmake-cache"
 
             - name: build and test
               run: |
+                  if [ "${ACT:-}" = "true" ]; then
+                      export XMAKE_ROOT=y
+                  fi
+                  xmake g --proxy_pac=github_mirror.lua
                   xmake f --test=y -m ${{ matrix.build_type }} -y
                   xmake build -y
                   xmake test

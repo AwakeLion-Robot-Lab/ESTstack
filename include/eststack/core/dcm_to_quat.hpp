@@ -16,8 +16,6 @@
 #define CORE__DCM_TO_QUAT_HPP
 
 // C++ standard library
-#include <utility>
-#include <array>
 #include <cmath>
 
 // Eigen library
@@ -47,7 +45,7 @@ namespace eststack
          * @details DCM MUST BE a valid rotation matrix, refer to [16] and https://github.com/Mayitzin/ahrs/blob/master/ahrs/common/orientation.py#L1117
          *          eta threshold selection can refer to docs/explanation/dcm_to_quat.md
          */
-        Eigen::Quaternionf sarabandi(const Eigen::Matrix3f &dcm, const float &eta = 0.0)
+        Eigen::Quaternionf sarabandi(const Eigen::Matrix3f &dcm, float eta = 0.0f)
         {
             const float r11 = dcm(0, 0);
             const float r12 = dcm(0, 1);
@@ -133,49 +131,39 @@ namespace eststack
         }
 
         /***
-         * @brief get best quaternion via eigenvalue decomposition from 3 vector pairs
-         * @param vec_pairs array of 3 vector pairs `(u_i, v_i)` where `u_i` is in body frame, `v_i` is in reference frame
-         * @param weights weights for each vector pair
+         * @brief Bar-Itzhack's method to extract DCM (even not orthogonal) to quaternion
+         * @param dcm direction cosine matrix
          * @return best quaternion
-         * @details refer to [17] and docs/explanation/dcm_to_quat.md
+         * @details refer to [17], [18] and docs/explanation/dcm_to_quat.md
+         *          here I ONLY implement Version 3 algorithm 'cause ONLY it can handle non-orthogonal DCM
          */
-        Eigen::Quaternionf steady_q_method(const std::array<std::pair<Eigen::Vector3f, Eigen::Vector3f>, 3> &vec_pairs,
-                                           const std::array<float, 3> &weights)
+        Eigen::Quaternionf bar_itzhack(const Eigen::Matrix3f &dcm)
         {
             /* compute matrix B */
-            Eigen::Matrix3f B = Eigen::Matrix3f::Zero();
-            for (int i = 0; i < 3; ++i)
-            {
-                B += weights[i] * vec_pairs[i].first * vec_pairs[i].second.transpose(); /* this is an 2nd-order and 3-dim tensor, not scalar! */
-            }
+            const float B00 = dcm(0, 0);
+            const float B01 = dcm(0, 1);
+            const float B02 = dcm(0, 2);
+            const float B10 = dcm(1, 0);
+            const float B11 = dcm(1, 1);
+            const float B12 = dcm(1, 2);
+            const float B20 = dcm(2, 0);
+            const float B21 = dcm(2, 1);
+            const float B22 = dcm(2, 2);
 
             /* compute matrix K */
-            const float sigma = B.trace();
-            const float B00 = B(0, 0);
-            const float B01 = B(0, 1);
-            const float B02 = B(0, 2);
-            const float B10 = B(1, 0);
-            const float B11 = B(1, 1);
-            const float B12 = B(1, 2);
-            const float B20 = B(2, 0);
-            const float B21 = B(2, 1);
-            const float B22 = B(2, 2);
+            const float sigma = B00 + B11 + B22;
+            const float z0 = B21 - B12;
+            const float z1 = B02 - B20;
+            const float z2 = B10 - B01;
 
-            const Eigen::Vector3f z(B12 - B21,
-                                    B20 - B02,
-                                    B01 - B10);
-            const float z0 = z(0);
-            const float z1 = z(1);
-            const float z2 = z(2);
-
-            const float s00 = 2.0f * B00 - sigma;
-            const float s11 = 2.0f * B11 - sigma;
-            const float s22 = 2.0f * B22 - sigma;
+            const float s00 = B00 - B11 - B22;
+            const float s11 = -B00 + B11 - B22;
+            const float s22 = -B00 - B11 + B22;
             const float s01 = B01 + B10;
             const float s02 = B02 + B20;
             const float s12 = B12 + B21;
 
-            Eigen::Matrix4f K = Eigen::Matrix4f::Zero();
+            Eigen::Matrix4f K;
             K << sigma, z0, z1, z2,
                 z0, s00, s01, s02,
                 z1, s01, s11, s12,
@@ -196,25 +184,6 @@ namespace eststack
         }
 
         /***
-         * @brief Bar-Itzhack's method to extract DCM (even not orthogonal) to quaternion
-         * @param dcm direction cosine matrix
-         * @return best quaternion
-         * @details refer to [18], here I ONLY implement Version 3 algorithm 'cause ONLY it can handle non-orthogonal DCM
-         */
-        Eigen::Quaternionf bar_itzhack(const Eigen::Matrix3f &dcm)
-        {
-            auto vec_pairs = std::array<std::pair<Eigen::Vector3f, Eigen::Vector3f>, 3>{
-                std::make_pair(dcm.row(0), Eigen::Vector3f::UnitX()),
-                std::make_pair(dcm.row(1), Eigen::Vector3f::UnitY()),
-                std::make_pair(dcm.row(2), Eigen::Vector3f::UnitZ())};
-
-            const float weight_val = 1.0f / 3.0f;
-            auto weights = std::array<float, 3>{weight_val, weight_val, weight_val};
-
-            return core::steady_q_method(vec_pairs, weights);
-        }
-
-        /***
          * @brief get best quaternion from DCM, even if the DCM is not orthogonal
          * @param dcm direction cosine matrix
          * @return best quaternion
@@ -230,7 +199,7 @@ namespace eststack
             else
             {
                 /* if DCM is ill-conditioned seriously, return a default quaternion */
-                if (eststack::getConditionNumber(dcm) > 1e5)
+                if (eststack::getConditionNumber(dcm) > 1e5f)
                     return Eigen::Quaternionf::Identity();
 
                 /* if DCM is not orthogonal but well-conditioned, use the robust method */

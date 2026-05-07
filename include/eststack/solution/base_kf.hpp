@@ -16,6 +16,7 @@
 #define SOLUTION__BASE_KF_HPP
 
 // C++ standard library
+#include <optional>
 #include <utility>
 #include <deque>
 
@@ -93,11 +94,29 @@ namespace eststack
              * @param F transition matrix
              * @param u control input vector
              * @param args additional arguments
+             * @note with control input
              */
             template <typename TransitionModel, typename ControlInput, typename ProcessNoiseCovariance, typename... Args>
+                requires(!std::is_void_v<ControlInput>)
             bool predict(const TransitionModel &model, const ControlInput &u, const ProcessNoiseCovariance &Q, Args &&...args)
             {
                 return static_cast<Derived *>(this)->predictImpl(model, u, Q, std::forward<Args>(args)...);
+            }
+
+            /***
+             * @brief prediction step
+             * @tparam TransitionModel transition model of the system
+             * @tparam ProcessNoiseCovariance process noise covariance
+             * @tparam Args additional arguments, e.g. bias or white noise, etc.
+             * @param F transition matrix
+             * @param args additional arguments
+             * @note no control input
+             */
+            template <typename TransitionModel, typename ProcessNoiseCovariance, typename... Args>
+                requires std::is_void_v<typename TransitionModel::ControlInput>
+            bool predict(const TransitionModel &model, const ProcessNoiseCovariance &Q, Args &&...args)
+            {
+                return static_cast<Derived *>(this)->predictImpl(model, Q, std::forward<Args>(args)...);
             }
 
             /***
@@ -112,7 +131,7 @@ namespace eststack
              * @param args additional arguments
              */
             template <typename MeasurementModel, typename Measurement, typename MeasNoiseCovariance, typename... Args>
-            bool update(const MeasurementModel &model, const Measurement &z, const MeasNoiseCovariance &R, Args &&...args)
+            std::optional<double> update(const MeasurementModel &model, const Measurement &z, const MeasNoiseCovariance &R, Args &&...args)
             {
                 return static_cast<Derived *>(this)->updateImpl(model, z, R, std::forward<Args>(args)...);
             }
@@ -149,8 +168,7 @@ namespace eststack
              */
             int max_priori_nis_num_;
         };
-
-    }
-}
+    } // namespace solution
+} // namespace eststack
 
 #endif //! SOLUTION__BASE_KF_HPP

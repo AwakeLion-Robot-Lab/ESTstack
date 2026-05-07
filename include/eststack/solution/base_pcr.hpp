@@ -80,6 +80,7 @@ namespace eststack
             using PointCloud = pcl::PointCloud<PointT>;
             using PointCloudPtr = typename PointCloud::Ptr;
             using PointCloudConstPtr = typename PointCloud::ConstPtr;
+            using Result = PCRResult;
 
             /***
              * @brief set source cloud
@@ -139,9 +140,9 @@ namespace eststack
             /***
              * @brief get registration result
              */
-            void getResult(PCRResult &result) noexcept
+            const PCRResult &getResult() const noexcept
             {
-                result = result_;
+                return result_;
             }
 
             /***

@@ -197,7 +197,7 @@ namespace eststack
              * @param pt input point
              * @details no matter what the point type is, we just get its x, y, z and set w to 1.0f for homogeneous coordinate
              */
-            inline Eigen::Vector4f getPointCoord(const PointT &pt)
+            inline Eigen::Vector4f getPointCoord(const PointT &pt) const
             {
                 return Eigen::Vector4f(pt.x, pt.y, pt.z, 1.0f);
             }

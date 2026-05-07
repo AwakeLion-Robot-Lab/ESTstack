@@ -6,7 +6,7 @@
 
 We use `plus(t, J_mout_m, J_mout_t)` in [manif](https://github.com/artivis/manif/blob/devel/include/manif/impl/lie_group_base.h#L184) to auto compute state jacobian $\mathbf{F}_x$ and noise jacobian $\mathbf{F}_i$, but this can only work in normal lie group, in fact, extended lie groups like $\boldsymbol{SE}_2(3)$ and $\textbf{Bundle}$ do not meet this API.
 
-That's why I define `AutoComputable` concept to set constraint for you guys about `plus()`. 
+That's why I define `AutoComputable` concept to set constraint for you guys about `plus()`.
 
 ### Transition Model
 
@@ -34,7 +34,7 @@ where:
 | $\frac{\partial \boldsymbol{\tau}}{\partial \mathbf{i}}$       | DoF $\times$ dim(noise) | noise-to-tangent mapping                       |
 
 > [!NOTE]
-> In manif, Dim = dim(Manifold) and DoF = dim(Tangent) = **dim(Error-State)**.
+> In `manif`, Dim = dim(Manifold) and DoF = dim(Tangent) = **dim(Error-State)**.
 
 #### Auto-Computable Case
 

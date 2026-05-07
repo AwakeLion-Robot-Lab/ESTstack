@@ -16,15 +16,18 @@
 #define SOLUTION__ESKFOM_HPP
 
 // C++ standard library
+#include <type_traits>
+#include <optional>
 #include <memory>
 
 // Eigen library
-#include <Eigen/Core>
 #include <Eigen/Cholesky>
+#include <Eigen/Core>
 
 // ESTstack library
 #include "eststack/model/motion/base_motion_model.hpp"
 #include "eststack/solution/base_kf.hpp"
+#include "eststack/eigen_traits.hpp"
 
 /***
  * @brief An algorithm set focus on state estimation
@@ -77,20 +80,26 @@ namespace eststack
             }
 
             /***
-             * @brief ESKFOM prediction step implementation
+             * @brief ESKFOM prediction step implementation (controlled)
              * @param model transition model providing Fx and Fw
              * @param u     control input
              * @param Q     process noise covariance
              * @param dt    time step
+             * @note with control input
              */
-            template <eststack::TransitionModel TransitionModel, typename... Args>
+            template <eststack::TransitionModel TransitionModel>
+                requires(!std::is_void_v<typename TransitionModel::ControlInput>)
             bool predictImpl(const TransitionModel &model,
                              const typename TransitionModel::ControlInput &u,
                              const typename TransitionModel::ProcessNoiseCovariance &Q,
                              const double &dt)
             {
-                const Tangent tau = model.compute(this->x_, u, dt);
-                const auto [J_tau_dx, J_tau_i] = model.computeJacobians(this->x_, u, dt);
+                const auto tau = model.compute(this->x_, u, dt);
+
+                typename TransitionModel::StateJacobian J_tau_dx;
+                typename TransitionModel::NoiseJacobian J_tau_i;
+                if (!model.computeJacobians(this->x_, u, dt, J_tau_dx, J_tau_i))
+                    return false;
 
                 typename TransitionModel::StateJacobian J_x, J_u, Fx;
                 this->x_ = this->x_.rplus(tau, J_x, J_u);
@@ -98,8 +107,41 @@ namespace eststack
                 Fx.noalias() = (J_x + J_u * J_tau_dx).eval();
                 const auto Fi = (J_u * J_tau_i).eval();
 
-                this->P_ = Fx * this->P_ * Fx.transpose();
                 /* noalias() can fasten matrix operation while elements in LHS do not appear in RHS */
+                this->P_ = Fx * this->P_ * Fx.transpose();
+                (this->P_).noalias() += Fi * Q * Fi.transpose();
+
+                return true;
+            }
+
+            /***
+             * @brief ESKFOM prediction step implementation
+             * @param model transition model providing Fx and Fw
+             * @param Q     process noise covariance
+             * @param dt    time step
+             * @note no control input
+             */
+            template <eststack::TransitionModel TransitionModel>
+                requires std::is_void_v<typename TransitionModel::ControlInput>
+            bool predictImpl(const TransitionModel &model,
+                             const typename TransitionModel::ProcessNoiseCovariance &Q,
+                             const double &dt)
+            {
+                const auto tau = model.compute(this->x_, dt);
+
+                typename TransitionModel::StateJacobian J_tau_dx;
+                typename TransitionModel::NoiseJacobian J_tau_i;
+                if (!model.computeJacobians(this->x_, dt, J_tau_dx, J_tau_i))
+                    return false;
+
+                typename TransitionModel::StateJacobian J_x, J_u, Fx;
+                this->x_ = this->x_.rplus(tau, J_x, J_u);
+
+                Fx.noalias() = (J_x + J_u * J_tau_dx).eval();
+                const auto Fi = (J_u * J_tau_i).eval();
+
+                /* noalias() can fasten matrix operation while elements in LHS do not appear in RHS */
+                this->P_ = Fx * this->P_ * Fx.transpose();
                 (this->P_).noalias() += Fi * Q * Fi.transpose();
 
                 return true;
@@ -113,16 +155,22 @@ namespace eststack
              * @param dt    time step
              */
             template <eststack::MeasurementModel MeasurementModel, typename... Args>
-            bool updateImpl(const MeasurementModel &model,
-                            const typename MeasurementModel::Measurement &z,
-                            const typename MeasurementModel::MeasNoiseCovariance &R, const double &dt)
+            std::optional<double> updateImpl(const MeasurementModel &model,
+                                             const typename MeasurementModel::Measurement &z,
+                                             const typename MeasurementModel::MeasNoiseCovariance &R, const double &dt)
             {
                 const auto z_pred = model.compute(this->x_, dt);
+                if (!z_pred)
+                    return std::nullopt;
+
                 /* PLEASE refer to docs/explanation/model.md to figure out how to compute H */
-                const auto [H, Hv] = model.computeJacobians(this->x_, dt);
+                typename MeasurementModel::MeasJacobian H;
+                typename MeasurementModel::NoiseJacobian Hv;
+                if (!model.computeJacobians(this->x_, dt, H, Hv))
+                    return std::nullopt;
 
                 /* priori innovation */
-                const auto inno = (z - z_pred).eval();
+                const auto inno = (z - z_pred.value()).eval();
                 /* priori innovation covariance */
                 const auto S = (H * this->P_ * H.transpose() + Hv * R * Hv.transpose()).eval();
 
@@ -187,15 +235,15 @@ namespace eststack
                     if (this->priori_nis_.size() > this->max_priori_nis_num_)
                         this->priori_nis_.pop_front();
 
-                    return true;
+                    return nis;
                 }
                 else
                 {
-                    return false;
+                    return std::nullopt;
                 }
             }
         };
-    }
-}
+    } // namespace solution
+} // namespace eststack
 
 #endif //! SOLUTION__ESKFOM_HPP

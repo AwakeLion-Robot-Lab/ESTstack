@@ -17,7 +17,7 @@
 
 // C++ standard library
 #include <type_traits>
-#include <tuple>
+#include <optional>
 
 // Eigen library
 #include <Eigen/Core>
@@ -89,25 +89,25 @@ namespace eststack
              */
             template <typename U = ControlInputT>
                 requires(!std::is_void_v<U>)
-            State::Tangent compute(const State &x, const U &u, double dt) const
+            typename State::Tangent compute(const State &x, const U &u, double dt) const
             {
                 return static_cast<const Derived *>(this)->computeImpl(x, u, dt);
             }
 
             /***
              * @brief compute jacobians of the transition model
-             * @param x current state
-             * @param u control input
-             * @param dt time step
+             * @param[in] x current state
+             * @param[in] u control input
+             * @param[in] dt time step
+             * @param[out] Fx state jacobian
+             * @param[out] Fw noise jacobian
              * @note with control input
-             * @return state jacobian and noise jacobian
              */
             template <typename U = ControlInputT>
                 requires(!std::is_void_v<U>)
-            auto computeJacobians(const State &x, const U &u, double dt) const
-                -> std::tuple<StateJacobian, NoiseJacobian>
+            bool computeJacobians(const State &x, const U &u, double dt, Eigen::Ref<StateJacobian> Fx, Eigen::Ref<NoiseJacobian> Fw) const
             {
-                return static_cast<const Derived *>(this)->computeJacobiansImpl(x, u, dt);
+                return static_cast<const Derived *>(this)->computeJacobiansImpl(x, u, dt, Fx, Fw);
             }
 
             /***
@@ -119,24 +119,24 @@ namespace eststack
              */
             template <typename U = ControlInputT>
                 requires std::is_void_v<U>
-            State::Tangent compute(const State &x, double dt) const
+            typename State::Tangent compute(const State &x, double dt) const
             {
                 return static_cast<const Derived *>(this)->computeImpl(x, dt);
             }
 
             /***
              * @brief compute jacobians of the transition model
-             * @param x current state
-             * @param dt time step
+             * @param[in] x current state
+             * @param[in] dt time step
+             * @param[out] Fx state jacobian
+             * @param[out] Fw noise jacobian
              * @note no control input
-             * @return state jacobian and noise jacobian
              */
             template <typename U = ControlInputT>
                 requires std::is_void_v<U>
-            auto computeJacobians(const State &x, double dt) const
-                -> std::tuple<StateJacobian, NoiseJacobian>
+            bool computeJacobians(const State &x, double dt, Eigen::Ref<StateJacobian> Fx, Eigen::Ref<NoiseJacobian> Fw) const
             {
-                return static_cast<const Derived *>(this)->computeJacobiansImpl(x, dt);
+                return static_cast<const Derived *>(this)->computeJacobiansImpl(x, dt, Fx, Fw);
             }
 
         protected:
@@ -171,21 +171,21 @@ namespace eststack
              * @param x current state
              * @param dt time step
              */
-            Measurement compute(const State &x, double dt) const
+            std::optional<Measurement> compute(const State &x, double dt) const
             {
                 return static_cast<const Derived *>(this)->computeImpl(x, dt);
             }
 
             /***
              * @brief compute jacobians of the measurement model
-             * @param x current state
-             * @param dt time step
-             * @return measurement jacobian and noise jacobian
+             * @param[in] x current state
+             * @param[in] dt time step
+             * @param[out] H measurement jacobian
+             * @param[out] Hv noise jacobian
              */
-            auto computeJacobians(const State &x, double dt) const
-                -> std::tuple<MeasJacobian, NoiseJacobian>
+            bool computeJacobians(const State &x, double dt, Eigen::Ref<MeasJacobian> H, Eigen::Ref<NoiseJacobian> Hv) const
             {
-                return static_cast<const Derived *>(this)->computeJacobiansImpl(x, dt);
+                return static_cast<const Derived *>(this)->computeJacobiansImpl(x, dt, H, Hv);
             }
 
         protected:

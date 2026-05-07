@@ -1,9 +1,17 @@
+# Claude setting files
+.claude/
+CLAUDE.md
+
+# Matt Pocock Skills
+docs/agents/
+
 # Build files
 build/
 
 # Vscode setting files
 .vscode/
 
+# Xmake setting files
 .xmake/
 
 # Prerequisites

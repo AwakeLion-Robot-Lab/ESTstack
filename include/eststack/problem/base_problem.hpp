@@ -16,9 +16,9 @@
 #define PROBLEM__BASE_PROBLEM_HPP
 
 // C++ standard library
+#include <exception>
 #include <utility>
 #include <memory>
-#include <exception>
 
 /***
  * @brief An algorithm set focus on estimation and filtering

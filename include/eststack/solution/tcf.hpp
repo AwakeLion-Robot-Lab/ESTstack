@@ -23,13 +23,13 @@
 #include <cmath>
 
 // Eigen library
-#include <Eigen/Core>
 #include <Eigen/Geometry>
+#include <Eigen/Core>
 
 // PCL library
+#include <pcl/filters/voxel_grid.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <pcl/filters/voxel_grid.h>
 
 // nanoflann library
 #include <nanoflann/nanoflann.hpp>
@@ -287,7 +287,7 @@ namespace eststack
                     resultSet.init(indices, sqrt_dists);
 
                     /* skip self point and take the true nearest neighbor */
-                    kdtree.findNeighbors(resultSet, query_pt, nanoflann::SearchParams(10));
+                    kdtree.findNeighbors(resultSet, query_pt, nanoflann::SearchParameters());
                     float sqrt_dist = (indices[0] == static_cast<std::size_t>(idx)) ? sqrt_dists[0] : sqrt_dists[1];
                     dists.push_back(sqrt_dist);
                 }

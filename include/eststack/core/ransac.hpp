@@ -16,12 +16,12 @@
 #define CORE__RANSAC_HPP
 
 // C++ standard library
-#include <cmath>
-#include <limits>
+#include <algorithm>
 #include <numeric>
 #include <random>
-#include <algorithm>
 #include <vector>
+#include <limits>
+#include <cmath>
 
 // OpenMP library
 #ifdef _OPENMP
