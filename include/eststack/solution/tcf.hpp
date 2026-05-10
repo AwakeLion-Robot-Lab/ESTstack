@@ -104,7 +104,7 @@ namespace eststack
                 /* get inlier threshold via point cloud resolution */
                 const float source_resolution = getPCLResolution(this->source_cloud_, this->leaf_size_);
                 const float target_resolution = getPCLResolution(this->target_cloud_, this->leaf_size_);
-                const float inlier_threshold = std::max(source_resolution, target_resolution);
+                const float inlier_threshold = 3.0f * std::max(source_resolution, target_resolution);
 
                 /* stage 1: length consistency coarse ransac */
                 auto OneStageModel = std::make_shared<model::OnePtSACModel>();
@@ -263,11 +263,13 @@ namespace eststack
                 KDTree kdtree(3, pcl_adaptor, nanoflann::KDTreeSingleIndexAdaptorParams(10));
                 kdtree.buildIndex();
 
-                /* just search for half of point cloud num */
-                const int search_num = std::max(10, static_cast<int>(used_cloud->size() / 2));
+                /* just search for approx. half of point cloud num */
                 const int pt_num = static_cast<int>(used_cloud->size());
-                std::vector<float> dists;
-                dists.reserve(search_num);
+                const int search_num = static_cast<int>(std::floor(pt_num / 20.0f)) * 10;
+                if (search_num <= 0)
+                    return 0.1f;
+
+                std::vector<float> distances(search_num);
 
                 /* random sampling and query */
                 std::random_device rd;
@@ -282,20 +284,19 @@ namespace eststack
 
                     /* query two nearest neighbors to exclude self point */
                     std::size_t indices[2];
-                    float sqrt_dists[2];
+                    float sq_dists[2];
                     nanoflann::KNNResultSet<float> resultSet(2);
-                    resultSet.init(indices, sqrt_dists);
+                    resultSet.init(indices, sq_dists);
 
-                    /* skip self point and take the true nearest neighbor */
+                    /* select the second nearest neighbor to exclude the query point itself (the first one) */
                     kdtree.findNeighbors(resultSet, query_pt, nanoflann::SearchParameters());
-                    float sqrt_dist = (indices[0] == static_cast<std::size_t>(idx)) ? sqrt_dists[0] : sqrt_dists[1];
-                    dists.push_back(sqrt_dist);
+                    distances[i] = sq_dists[1];
                 }
 
                 /* get median distance */
-                const std::size_t mid_pos = dists.size() / 2;
-                std::nth_element(dists.begin(), dists.begin() + mid_pos, dists.end());
-                return std::sqrt(dists[mid_pos]);
+                std::sort(distances.begin(), distances.end());
+                const int mid_pos = (search_num - 1) / 2;
+                return std::sqrt(distances[mid_pos]);
             }
         };
     } // namespace solution

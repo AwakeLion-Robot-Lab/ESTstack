@@ -127,7 +127,9 @@ namespace eststack
             qy *= (r13 - r31 >= 0.0f) ? 1.0f : -1.0f;
             qz *= (r21 - r12 >= 0.0f) ? 1.0f : -1.0f;
 
-            return Eigen::Quaternionf(qw, qx, qy, qz).normalized();
+            Eigen::Quaternionf quat(qw, qx, qy, qz);
+            quat.normalize();
+            return quat;
         }
 
         /***
@@ -180,7 +182,9 @@ namespace eststack
              * details refer to [Eigen 5.0.0 Quaternion documentation](https://libeigen.gitlab.io/eigen/docs-5.0/classEigen_1_1Quaternion.html),
              * just focus on constructor 2/9 and 7/9, here q(0) is real part, use constructor 2/9
              */
-            return Eigen::Quaternionf(q(0), q(1), q(2), q(3)).normalized();
+            Eigen::Quaternionf quat(q(0), q(1), q(2), q(3));
+            quat.normalize();
+            return quat;
         }
 
         /***

@@ -215,7 +215,7 @@ namespace eststack
              */
             PCRResult result_;
         };
-    }
-}
+    } // namespace solution
+} // namespace eststack
 
 #endif //! SOLUTION__BASE_PCR_HPP

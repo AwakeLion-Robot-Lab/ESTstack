@@ -72,7 +72,8 @@ namespace eststack
         {
             std::normal_distribution<float> d(0.0f, 1.0f);
             Eigen::Quaternionf q(d(gen), d(gen), d(gen), d(gen));
-            return q.normalized();
+            q.normalize();
+            return q;
         }
 
         Eigen::Matrix3f randomDCM(std::mt19937 &gen)
@@ -145,7 +146,11 @@ namespace eststack
         /* ---- metrics ---- */
         float angularDistance(const Eigen::Quaternionf &q1, const Eigen::Quaternionf &q2)
         {
-            return q1.normalized().angularDistance(q2.normalized());
+            Eigen::Quaternionf q1_unit = q1;
+            Eigen::Quaternionf q2_unit = q2;
+            q1_unit.normalize();
+            q2_unit.normalize();
+            return q1_unit.angularDistance(q2_unit);
         }
 
         struct XformError

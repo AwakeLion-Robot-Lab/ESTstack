@@ -17,20 +17,21 @@
 
 // C++ standard library
 #include <algorithm>
-#include <cmath>
 #include <numeric>
-#include <vector>
+#include <limits>
 #include <memory>
+#include <vector>
+#include <cmath>
 
 // Eigen library
-#include <Eigen/Core>
 #include <Eigen/Geometry>
+#include <Eigen/Core>
 
 // ESTstack library
 #include "eststack/model/sac/base_sac_model.hpp"
 #include "eststack/core/dcm_to_quat.hpp"
-#include "eststack/core/kabsch.hpp"
 #include "eststack/eigen_traits.hpp"
+#include "eststack/core/kabsch.hpp"
 
 /***
  * @brief An algorithm set focus on state estimation
@@ -72,8 +73,8 @@ namespace eststack
              */
             bool fitImpl(const std::vector<int> &samples, Eigen::VectorXf &coeffs)
             {
-                /* check empty */
-                if (samples.empty())
+                /* check sample size */
+                if (samples.size() < static_cast<std::size_t>(sample_size_))
                     return false;
 
                 coeffs.resize(model_size_);
@@ -212,8 +213,8 @@ namespace eststack
              */
             bool fitImpl(const std::vector<int> &samples, Eigen::VectorXf &coeffs)
             {
-                /* check empty */
-                if (samples.empty())
+                /* check sample size */
+                if (samples.size() < static_cast<std::size_t>(sample_size_))
                     return false;
 
                 coeffs.resize(model_size_);
@@ -351,23 +352,50 @@ namespace eststack
              */
             bool fitImpl(const std::vector<int> &samples, Eigen::VectorXf &coeffs)
             {
-                /* check empty */
-                if (samples.empty())
+                /* check sample size */
+                if (samples.size() < static_cast<std::size_t>(sample_size_))
                     return false;
 
                 /* check colinear or not */
-                Eigen::Vector3f source_vec_1 = source_.col(samples[1]) - source_.col(samples[0]);
-                Eigen::Vector3f source_vec_2 = source_.col(samples[2]) - source_.col(samples[0]);
-                Eigen::Vector3f target_vec_1 = target_.col(samples[1]) - target_.col(samples[0]);
-                Eigen::Vector3f target_vec_2 = target_.col(samples[2]) - target_.col(samples[0]);
                 const float eps = std::numeric_limits<float>::epsilon();
+                const Eigen::Vector3f source_origin = source_.col(samples[0]);
+                const Eigen::Vector3f target_origin = target_.col(samples[0]);
+                Eigen::Vector3f source_base = Eigen::Vector3f::Zero();
+                Eigen::Vector3f target_base = Eigen::Vector3f::Zero();
+                bool has_base = false;
+                bool is_degenerate = true;
+                for (std::size_t i = 1; i < samples.size(); ++i)
+                {
+                    const Eigen::Vector3f source_vec = source_.col(samples[i]) - source_origin;
+                    const Eigen::Vector3f target_vec = target_.col(samples[i]) - target_origin;
+                    /* check if vectors are valid, or singular */
+                    if (source_vec.norm() < eps || target_vec.norm() < eps)
+                        continue;
 
-                if (source_vec_1.cross(source_vec_2).norm() < eps || target_vec_1.cross(target_vec_2).norm() < eps)
+                    /* check if this vector is valid */
+                    if (!has_base)
+                    {
+                        source_base = source_vec;
+                        target_base = target_vec;
+                        has_base = true;
+                        continue;
+                    }
+
+                    /* check if vectors are collinear */
+                    if (source_base.cross(source_vec).norm() >= eps && target_base.cross(target_vec).norm() >= eps)
+                    {
+                        is_degenerate = false;
+                        break;
+                    }
+                }
+
+                /* check if degenerate */
+                if (is_degenerate)
                     return false;
 
                 /* get R and t via kabsch */
-                Eigen::Matrix3f source_sample = source_(Eigen::placeholders::all, samples);
-                Eigen::Matrix3f target_sample = target_(Eigen::placeholders::all, samples);
+                Eigen::Matrix3Xf source_sample = source_(Eigen::placeholders::all, samples);
+                Eigen::Matrix3Xf target_sample = target_(Eigen::placeholders::all, samples);
                 Eigen::Isometry3f T = core::kabsch(source_sample, target_sample);
                 Eigen::Quaternionf q = core::fromDCM(T.linear());
                 Eigen::Vector3f t = T.translation();

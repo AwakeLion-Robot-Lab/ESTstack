@@ -17,8 +17,8 @@ Main bibTeX references used in ESTstack. See per-algorithm explanation pages for
 | [11] | yuan2024btc          | BTC descriptor for 3D place recognition             |
 | [12] | shi2024ransac        | RANSAC two-stage consensus for 3D registration      |
 | [13] | rusu2011pcl          | Point Cloud Library (PCL)                           |
-| [14] | barath2019magsac     | MAGSAC — marginalizing sample consensus             |
-| [15] | barath2020magsacpp   | MAGSAC++ — fast robust estimator                    |
+| [14] | chum2005prosac       | PROSAC — progressive sample consensus               |
+| [15] | barath2018gcransac   | Graph-Cut RANSAC — spatially coherent LO-RANSAC     |
 | [16] | sarabandi2019        | Sarabandi: Accurate DCM to quaternion               |
 | [17] | ahrs_davenport       | Davenport's q-method (Wahba's problem)              |
 | [18] | bar-itzhack2000      | Bar-Itzhack: Quaternion from Rotation Matrix        |
@@ -208,19 +208,27 @@ Main bibTeX references used in ESTstack. See per-algorithm explanation pages for
 }
 
 % [14]
-@inproceedings{barath2019magsac,
-  author    = {Barath, Daniel and Matas, Jiri and Noskova, Jana},
-  title     = {{MAGSAC}: marginalizing sample consensus},
-  booktitle = {Conference on Computer Vision and Pattern Recognition},
-  year      = {2019},
+@inproceedings{chum2005prosac,
+  author    = {Chum, Ond{\v{r}}ej and Matas, Ji{\v{r}}{\'i}},
+  title     = {Matching with {PROSAC} -- Progressive Sample Consensus},
+  booktitle = {2005 IEEE Computer Society Conference on Computer Vision and Pattern Recognition ({CVPR}'05)},
+  volume    = {1},
+  pages     = {220--226},
+  year      = {2005},
+  doi       = {10.1109/CVPR.2005.221},
+  note      = {Progressive sampling from quality-ranked tentative correspondences}
 }
 
 % [15]
-@inproceedings{barath2020magsacpp,
-  author    = {Barath, Daniel and Noskova, Jana and Ivashechkin, Maksym and Matas, Jiri},
-  title     = {{MAGSAC}++, a fast, reliable and accurate robust estimator},
-  booktitle = {Conference on Computer Vision and Pattern Recognition},
-  year      = {2020},
+@inproceedings{barath2018gcransac,
+  author    = {Barath, Daniel and Matas, Jiri},
+  title     = {Graph-Cut {RANSAC}},
+  booktitle = {Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition ({CVPR})},
+  pages     = {6733--6741},
+  month     = {June},
+  year      = {2018},
+  doi       = {10.1109/CVPR.2018.00704},
+  note      = {Local optimization by graph-cut inlier labeling with spatial coherence}
 }
 ```
 

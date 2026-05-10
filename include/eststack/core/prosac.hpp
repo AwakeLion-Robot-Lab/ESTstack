@@ -12,15 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SOLUTION__BASE_PCR_HPP
-#define SOLUTION__BASE_PCR_HPP
+#ifndef CORE__PROSAC_HPP
+#define CORE__PROSAC_HPP
 
-// C++ standard library
-#include <memory>
-
-// Eigen library
-#include <Eigen/Geometry>
-#include <Eigen/Core>
+// ESTstack library
+#include "eststack/core/base_sac.hpp"
 
 /***
  * @brief An algorithm set focus on state estimation
@@ -29,17 +25,19 @@
 namespace eststack
 {
     /***
-     * @brief algorithms for problems
+     * @brief core algorithms for estimation
      */
-    namespace solution
+    namespace core
     {
         /***
-         * @brief Perspective n Points solver for 3D-2D geometry
+         * @brief PROgressive SAmple Consensus for robust model fitting within good correspondences
+         * @tparam Model SAmple Consensus model to fit
          */
-        class EPnP
+        template <SACModel Model>
+        class PROSAC final : public BaseSAC<PROSAC<Model>, Model>
         {
         };
-    } // namespace solution
+    } // namespace core
 } // namespace eststack
 
-#endif //! SOLUTION__BASE_PCR_HPP
+#endif //! CORE__PROSAC_HPP
