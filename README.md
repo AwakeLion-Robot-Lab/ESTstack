@@ -2,11 +2,11 @@
 
 ![logo](./docs/logo.png)
 
-$\mathscr{Model,\ Match,\ Estimate\ In\ Stack.}$
+$\mathscr{Model,\ Match,\ Estimate\ In\ Multi-Stacks.}$
 
 [![build-and-test](https://github.com/AwakeLion-Robot-Lab/ESTstack/actions/workflows/ci.yml/badge.svg)](https://github.com/AwakeLion-Robot-Lab/ESTstack/actions/workflows/ci.yml) [![docs](https://github.com/AwakeLion-Robot-Lab/ESTstack/actions/workflows/docs.yml/badge.svg)](https://github.com/AwakeLion-Robot-Lab/ESTstack/actions/workflows/docs.yml)
 
-[github-pages](https://awakelion-robot-lab.github.io/awakelion-logger/) for docs
+[github-pages](https://awakelion-robot-lab.github.io/ESTstack/) for docs
 
 </div>
 
