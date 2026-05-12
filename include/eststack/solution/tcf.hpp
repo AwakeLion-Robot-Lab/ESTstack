@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <memory>
 #include <random>
+#include <ranges>
 #include <vector>
 #include <cmath>
 
@@ -294,8 +295,8 @@ namespace eststack
                 }
 
                 /* get median distance */
-                std::sort(distances.begin(), distances.end());
                 const int mid_pos = (search_num - 1) / 2;
+                std::ranges::nth_element(distances, distances.begin() + mid_pos);
                 return std::sqrt(distances[mid_pos]);
             }
         };

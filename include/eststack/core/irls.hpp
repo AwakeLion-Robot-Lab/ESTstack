@@ -98,6 +98,34 @@ namespace eststack
         };
 
         /***
+         * @brief Geman-McClure loss function
+         */
+        struct GemanMcClureLoss
+        {
+            using Ptr = std::shared_ptr<GemanMcClureLoss>;
+            using ConstPtr = std::shared_ptr<const GemanMcClureLoss>;
+
+            /***
+             * @brief assign weight for each residual
+             */
+            inline float weight(float residual, float scale) const
+            {
+                float scale_sq = scale * scale;
+                float res_sq = residual * residual;
+                float denom = res_sq + scale_sq;
+                return (scale_sq * scale_sq) / (denom * denom);
+            }
+
+            /***
+             * @brief check whether is inlier via residual
+             */
+            inline bool isInlier(float residual, float scale) const
+            {
+                return std::abs(residual) < 3.0f * scale;
+            }
+        };
+
+        /***
          * @brief Iteratively Reweighted Least Squares for rigid transformation
          * @tparam LossFunc Loss function type
          */

@@ -233,8 +233,8 @@ namespace eststack
                                              const std::vector<RegistrationCase> &cases,
                                              Runner &&runner)
         {
-            const float success_rot_deg = getEnvFloat("ESTSTACK_REGISTRATION_SUCCESS_ROT_DEG", 5.0f);
-            const float success_trans_m = getEnvFloat("ESTSTACK_REGISTRATION_SUCCESS_TRANS_M", 2.0f);
+            const float success_rot_deg = getEnvFloat("ESTSTACK_REGISTRATION_SUCCESS_ROT_DEG", 0.9f);
+            const float success_trans_m = getEnvFloat("ESTSTACK_REGISTRATION_SUCCESS_TRANS_M", 0.5f);
             const float eval_voxel_m = getEnvFloat("ESTSTACK_REGISTRATION_EVAL_VOXEL_M", 0.75f);
 
             std::vector<CaseResult> results;

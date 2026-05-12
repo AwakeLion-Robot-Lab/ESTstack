@@ -17,9 +17,9 @@
 
 // C++ standard library
 #include <algorithm>
-#include <numeric>
 #include <limits>
 #include <memory>
+#include <ranges>
 #include <vector>
 #include <cmath>
 
@@ -153,8 +153,8 @@ namespace eststack
                     std::vector<int> idx_vec(inliers_num);
                     std::iota(idx_vec.begin(), idx_vec.end(), 0);
                     /* sort indices by their connection values in descending order */
-                    std::sort(idx_vec.begin(), idx_vec.end(), [&inliers_connection](int a, int b)
-                              { return inliers_connection(a) > inliers_connection(b); });
+                    std::ranges::sort(idx_vec, [&inliers_connection](int a, int b)
+                                      { return inliers_connection(a) > inliers_connection(b); });
                     /* we only select top new_inliers_num indices */
                     std::vector<int> new_inliers_indices(idx_vec.begin(), idx_vec.begin() + new_inliers_num);
 

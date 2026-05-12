@@ -54,6 +54,7 @@ namespace eststack
         using eststack::core::bar_itzhack;
         using eststack::core::CauchyLoss;
         using eststack::core::fromDCM;
+        using eststack::core::GemanMcClureLoss;
         using eststack::core::HuberLoss;
         using eststack::core::kabsch;
         using eststack::core::RigidIRLS;
@@ -558,12 +559,23 @@ namespace eststack
             EXPECT_NEAR(loss.weight(4.0f, 1.0f), 0.25f, 1e-6f);
         }
 
+        TEST(IrlsLoss, GemanMcClureWeightFormula)
+        {
+            GemanMcClureLoss loss;
+            /* w(r, s) = s^4 / (r^2 + s^2)^2 */
+            EXPECT_FLOAT_EQ(loss.weight(0.0f, 1.0f), 1.0f);
+            EXPECT_NEAR(loss.weight(1.0f, 1.0f), 0.25f, 1e-6f);
+            EXPECT_NEAR(loss.weight(3.0f, 1.0f), 0.01f, 1e-6f);
+            EXPECT_FLOAT_EQ(loss.weight(2.0f, 1.0f), loss.weight(-2.0f, 1.0f));
+            EXPECT_GT(loss.weight(0.5f, 1.0f), loss.weight(2.0f, 1.0f));
+        }
+
         /* isInlier shares the same threshold across loss types -> typed test */
         template <typename Loss>
         struct LossTypedTest : public ::testing::Test
         {
         };
-        using LossTypes = ::testing::Types<CauchyLoss, HuberLoss>;
+        using LossTypes = ::testing::Types<CauchyLoss, HuberLoss, GemanMcClureLoss>;
         TYPED_TEST_SUITE(LossTypedTest, LossTypes);
 
         TYPED_TEST(LossTypedTest, InlierThreshold)
@@ -661,7 +673,10 @@ namespace eststack
             EXPECT_LT(err_irls.rotation_deg, err_plain.rotation_deg);
             EXPECT_LT(err_irls.translation, err_plain.translation);
 
-            const char *tag = std::is_same_v<TypeParam, CauchyLoss> ? "Cauchy" : "Huber";
+            const char *tag = std::is_same_v<TypeParam, CauchyLoss>     ? "Cauchy"
+                              : std::is_same_v<TypeParam, HuberLoss>    ? "Huber"
+                              : std::is_same_v<TypeParam, GemanMcClureLoss> ? "GemanMcClure"
+                                                                             : "Unknown";
             std::cout << "\n[outlier robustness, " << tag << ", N=" << N << " w/ " << N_out << " outliers]\n"
                       << "  plain Kabsch : rot=" << err_plain.rotation_deg << " deg   trans=" << err_plain.translation << "\n"
                       << "  IRLS " << std::left << std::setw(8) << tag
@@ -748,6 +763,8 @@ namespace eststack
             irls_c.setLossFunction(std::make_shared<const CauchyLoss>());
             RigidIRLS<HuberLoss> irls_h;
             irls_h.setLossFunction(std::make_shared<const HuberLoss>());
+            RigidIRLS<GemanMcClureLoss> irls_gm;
+            irls_gm.setLossFunction(std::make_shared<const GemanMcClureLoss>());
 
             std::cout << "\n[IRLS benchmark, N=" << N << ", " << N_out
                       << " outliers, " << trials << " trials]\n";
@@ -766,6 +783,12 @@ namespace eststack
         irls_h.setInputTarget(inputs[i].second);
         irls_h.optimize();
         g_sink += irls_h.getFinalTransformation().translation().x(); });
+            benchmark("IRLS Geman-McClure", trials, [&](int i)
+                      {
+        irls_gm.setInputSource(inputs[i].first);
+        irls_gm.setInputTarget(inputs[i].second);
+        irls_gm.optimize();
+        g_sink += irls_gm.getFinalTransformation().translation().x(); });
             EXPECT_TRUE(std::isfinite(static_cast<float>(g_sink)));
         }
 

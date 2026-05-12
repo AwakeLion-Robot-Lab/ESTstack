@@ -17,10 +17,10 @@
 
 // C++ standard library
 #include <algorithm>
-#include <numeric>
-#include <random>
-#include <vector>
 #include <limits>
+#include <random>
+#include <ranges>
+#include <vector>
 #include <cmath>
 
 // OpenMP library
@@ -230,9 +230,9 @@ namespace eststack
                 for (std::size_t i = 0; i < sample_size; ++i)
                 {
                     std::uniform_int_distribution<std::size_t> dist(i, index_size - 1);
-                    std::swap(shuffled_indices_[i], shuffled_indices_[dist(rng_)]);
+                    std::ranges::swap(shuffled_indices_[i], shuffled_indices_[dist(rng_)]);
                 }
-                std::copy(shuffled_indices_.cbegin(), shuffled_indices_.cbegin() + sample_size, samples.begin());
+                std::ranges::copy(shuffled_indices_ | std::views::take(sample_size), samples.begin());
 
                 return samples;
             }

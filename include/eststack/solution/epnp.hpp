@@ -22,6 +22,9 @@
 #include <Eigen/Geometry>
 #include <Eigen/Core>
 
+// manif library
+#include <manif/SE3.h>
+
 /***
  * @brief An algorithm set focus on state estimation
  * @author jinhua "siyiovo" deng

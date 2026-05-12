@@ -205,8 +205,7 @@ namespace eststack
     concept PCR = requires(T pcr,
                            const typename T::PointCloudConstPtr &cloud,
                            const Eigen::Matrix3Xf &source_match,
-                           const Eigen::Matrix3Xf &target_match,
-                           typename T::Result &result) {
+                           const Eigen::Matrix3Xf &target_match) {
         typename T::PointCloud;
         typename T::PointCloudPtr;
         typename T::PointCloudConstPtr;
@@ -218,7 +217,7 @@ namespace eststack
         { pcr.setVoxelResolution(std::declval<float>()) } -> std::same_as<void>;
         { pcr.align() } -> std::same_as<bool>;
         { pcr.evaluate() } -> std::same_as<void>;
-        { pcr.getResult(result) } noexcept -> std::same_as<void>;
+        { pcr.getResult() } noexcept -> std::same_as<const typename T::Result &>;
     };
 }
 
