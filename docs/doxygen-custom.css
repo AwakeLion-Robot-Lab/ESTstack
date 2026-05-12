@@ -1,0 +1,5 @@
+.contents .textblock img[title="logo"],
+.contents .textblock img[src="logo.png"] {
+    width: min(320px, 70vw);
+    height: auto;
+}
