@@ -4,7 +4,9 @@
 
 $\mathscr{Model,\ Match,\ Estimate\ In\ Stack.}$
 
-[![build-and-test](https://github.com/AwakeLion-Robot-Lab/ESTstack/actions/workflows/ci.yml/badge.svg)](https://github.com/AwakeLion-Robot-Lab/ESTstack/actions/workflows/ci.yml)
+[![build-and-test](https://github.com/AwakeLion-Robot-Lab/ESTstack/actions/workflows/ci.yml/badge.svg)](https://github.com/AwakeLion-Robot-Lab/ESTstack/actions/workflows/ci.yml) [![docs](https://github.com/AwakeLion-Robot-Lab/ESTstack/actions/workflows/docs.yml/badge.svg)](https://github.com/AwakeLion-Robot-Lab/ESTstack/actions/workflows/docs.yml)
+
+[github-pages](https://awakelion-robot-lab.github.io/awakelion-logger/) for docs
 
 </div>
 
